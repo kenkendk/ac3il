@@ -43,7 +43,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="IR\InstructionElement.cs" />
+    <Compile Include="IR\MethodEntry.cs" />
+    <Compile Include="IR\MethodExit.cs" />
+    <Compile Include="IR\VirtualRegister.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SPEJIT.cs" />
+    <Compile Include="CompiledMethod.cs" />
+    <Compile Include="SPEOpCodeMapper.cs" />
     <Compile Include="TestJIT.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -52,6 +59,7 @@
       <Name>SPEEmulator</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

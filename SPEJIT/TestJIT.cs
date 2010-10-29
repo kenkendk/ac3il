@@ -18,173 +18,123 @@ namespace SPEJIT
                 AssemblyDefinition asm = AssemblyFactory.GetAssembly("CILFac.dll");
                 ModuleDefinition mod = asm.MainModule;
                 TypeDefinition tref = mod.Types["CILFac.Fac"];
-                MethodDefinition mdef = tref.Methods[0];
 
-                // Make copy of SP into register $2. Used to load arguments
-                instr.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] { new SPEEmulator.OpCodes.ori(2, 1, 0) });
+                SPEJIT jitter = new SPEJIT();
+                List<CompiledMethod> methods = new List<CompiledMethod>();
 
-                foreach (Mono.Cecil.Cil.Instruction x in mdef.Body.Instructions)
-                    instr.AddRange(JIT(x));
+                foreach (MethodDefinition mdef in tref.Methods)
+                {
+                    IR.MethodEntry root = BuildIRTree(mdef);
+                    //RegisterAllocator(root);
+                    methods.Add(jitter.JIT(root));
+                }
+
+                using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
+                using (System.IO.StringWriter sw = new System.IO.StringWriter())
+                {
+                    jitter.EmitInstructionStream(ms, sw, methods);
+
+                    Console.WriteLine("Converted output size in bytes: " + ms.Length);
+                    Console.Write(sw.ToString());
+                }
             }
             else
                 throw new Exception("Could not find program file");
         }
 
-
-        // We need to store the SP ($1) into the secret register ($2), so we can find the original stackpoint again.
-        // new SPEEmulator.OpCodes.stqd()
-        private static IEnumerable<SPEEmulator.OpCodes.Bases.Instruction> JIT(Mono.Cecil.Cil.Instruction x)
+        private static void RegisterAllocator(IR.MethodEntry root)
         {
-            int operandOffset;
-            KeyValuePair<int, int> branch;
-
-            if (branches.ContainsKey(x.Offset))
+            //Iterate over the independent sub trees
+            foreach (IR.InstructionElement el in root.Childnodes)
             {
-                foreach (KeyValuePair<int, int> pair in branches[x.Offset])
+                //We assume that the output of a tree is a value
+                switch (el.Instruction.OpCode.Code)
                 {
-                    SPEEmulator.OpCodes.Bases.Instruction inst = instr[pair.Value];
+                    case  Mono.Cecil.Cil.Code.Stloc:
+                    case Mono.Cecil.Cil.Code.Stloc_0:
+                    case Mono.Cecil.Cil.Code.Stloc_1:
+                    case Mono.Cecil.Cil.Code.Stloc_2:
+                    case Mono.Cecil.Cil.Code.Stloc_3:
+                    case Mono.Cecil.Cil.Code.Stloc_S:
+                    case Mono.Cecil.Cil.Code.Ret:
+                        //We now assign a virtual register for that value,
+                        // and pass down the register in the tree to allow sub-operations
+                        // inject values into it
+                        el.Registers = new IR.VirtualRegister[] { new IR.VirtualRegister() };
 
-                    if (inst.GetType().BaseType == typeof(SPEEmulator.OpCodes.Bases.RI16))
-                        ((SPEEmulator.OpCodes.Bases.RI16)inst).I16 = (uint)(instr.Count() - pair.Value);
-                    else
-                        throw new Exception("Unknown branch type");
+                        break;
+                    default:
+                        throw new Exception("Unexpected code fragment");
                 }
-
-                branches.Remove(x.Offset);
-            }
-            
-            switch (x.OpCode.Code)
-            {
-                case Mono.Cecil.Cil.Code.Nop:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[] 
-                    { 
-                        new SPEEmulator.OpCodes.nop(0) 
-                    };
-                case Mono.Cecil.Cil.Code.Ldarg_0:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[] 
-                    { 
-                        //Load argument 0 = Original SP from $2 - 8 (0x3f8) into $80
-                        new SPEEmulator.OpCodes.lqd(80, 2, 0x3f8),
-                        // Store value from $80 on stack 
-                        new SPEEmulator.OpCodes.stqd(80, 1, 0),
-                        // Increase SP with 8
-                        new SPEEmulator.OpCodes.ai(1, 1, 8)
-                    };
-                case Mono.Cecil.Cil.Code.Ldc_I4_0:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[] 
-                    {
-                        new SPEEmulator.OpCodes.il(80, 0),
-                        // Store value from $80 on stack 
-                        new SPEEmulator.OpCodes.stqd(80, 1, 0),
-                        // Increase SP with 8
-                        new SPEEmulator.OpCodes.ai(1, 1, 8)
-                    };
-                case Mono.Cecil.Cil.Code.Ldc_I4_1:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[] 
-                    {
-                        new SPEEmulator.OpCodes.il(80, 1),
-                        // Store value from $80 on stack 
-                        new SPEEmulator.OpCodes.stqd(80, 1, 0),
-                        // Increase SP with 8
-                        new SPEEmulator.OpCodes.ai(1, 1, 8)
-                    };
-                case Mono.Cecil.Cil.Code.Conv_I8:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.xswd(1, 1)
-                    };
-                case Mono.Cecil.Cil.Code.Ceq:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.lqd(80, 1, 0),
-                        new SPEEmulator.OpCodes.lqd(81, 1, 0x3f8),
-                        new SPEEmulator.OpCodes.sfi(1, 1, 8),
-                        new SPEEmulator.OpCodes.ceq(1, 80, 81)
-                    };
-                case Mono.Cecil.Cil.Code.Stloc_0:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.lqd(90, 1, 0),
-                        new SPEEmulator.OpCodes.ai(1, 1, 0x3f8)
-                    };
-                case Mono.Cecil.Cil.Code.Stloc_1:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.lqd(91, 1, 0),
-                        new SPEEmulator.OpCodes.sfi(1, 1, 8)
-                    };
-                case Mono.Cecil.Cil.Code.Ldloc_0:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.stqd(90, 1, 0),
-                        new SPEEmulator.OpCodes.ai(1, 1, 8)
-                    };
-                case Mono.Cecil.Cil.Code.Ldloc_1:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.stqd(91, 1, 0),
-                        new SPEEmulator.OpCodes.ai(1, 1, 8)
-                    };
-                case Mono.Cecil.Cil.Code.Brtrue_S:
-                    operandOffset = (int)((Mono.Cecil.Cil.Instruction)x.Operand).Offset;
-                    branch = new KeyValuePair<int, int>(x.Offset, instr.Count());
-
-                    if (branches.ContainsKey(operandOffset))
-                        branches[operandOffset].Add(branch);
-                    else
-                        branches.Add(operandOffset, new List<KeyValuePair<int, int>>() { branch });
-                    
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        // i16 (set to 0xffff) should be replaced with correct value, when it is know!
-                        new SPEEmulator.OpCodes.brz(1, 0xffff)
-                    };
-                case Mono.Cecil.Cil.Code.Br_S:
-                    operandOffset = (int)((Mono.Cecil.Cil.Instruction)x.Operand).Offset;
-                    branch = new KeyValuePair<int, int>(x.Offset, instr.Count());
-
-                    if (branches.ContainsKey(operandOffset))
-                        branches[operandOffset].Add(branch);
-                    else
-                        branches.Add(operandOffset, new List<KeyValuePair<int, int>>() { branch });
-                    
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        // i16 (set to 0xffff) should be replaced with correct value, when it is know!
-                        new SPEEmulator.OpCodes.br(1, 0xffff)
-                    };
-                case Mono.Cecil.Cil.Code.Sub:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.lqd(80, 1, 0),
-                        new SPEEmulator.OpCodes.lqd(81, 1, 0x3f8),
-                        new SPEEmulator.OpCodes.sfi(1, 1, 8),
-                        new SPEEmulator.OpCodes.sf(1, 81, 80)
-                    };
-                case Mono.Cecil.Cil.Code.Mul:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.lqd(80, 1, 0),
-                        new SPEEmulator.OpCodes.lqd(81, 1, 0x3f8),
-                        new SPEEmulator.OpCodes.sfi(1, 1, 8),
-                        new SPEEmulator.OpCodes.mpy(1, 81, 80)
-                    };
-                case Mono.Cecil.Cil.Code.Call:               
-                    int jump = -1 * instr.Count();
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                        new SPEEmulator.OpCodes.br(1, (uint)jump)
-                    };
-
-                case Mono.Cecil.Cil.Code.Ret:
-                    return new SPEEmulator.OpCodes.Bases.Instruction[]
-                    {
-                    };
-                default:
-                    throw new Exception("Unknown opcode: " + x.OpCode.Code.ToString());
             }
         }
 
+        private static void RecursiveRegisterAssigner(IR.InstructionElement el)
+        {
+            if (el.Childnodes.Length == 1 && NumberOfElementsPoped(el.Instruction.OpCode.StackBehaviourPop) == 1)
+            {
+            }
 
+            foreach (IR.InstructionElement sel in el.Childnodes)
+            {
+            }
+        }
+
+        private static int NumberOfElementsPoped(Mono.Cecil.Cil.StackBehaviour s)
+        {
+            switch (s)
+            {
+                case Mono.Cecil.Cil.StackBehaviour.Pop0:
+                    return 0;
+                case Mono.Cecil.Cil.StackBehaviour.Pop1:
+                case Mono.Cecil.Cil.StackBehaviour.Popi:
+                case Mono.Cecil.Cil.StackBehaviour.Varpop: //TODO: Varpop?
+                    return 1;
+                case Mono.Cecil.Cil.StackBehaviour.Pop1_pop1:
+                case Mono.Cecil.Cil.StackBehaviour.Popi_popi:
+                case Mono.Cecil.Cil.StackBehaviour.Popi_popi8:
+                case Mono.Cecil.Cil.StackBehaviour.Popi_popr4:
+                case Mono.Cecil.Cil.StackBehaviour.Popi_popr8:
+                case Mono.Cecil.Cil.StackBehaviour.Popref:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_pop1:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi:
+                    return 2;
+                case Mono.Cecil.Cil.StackBehaviour.Popi_popi_popi:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popi8:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popr8:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popr4:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popref:
+                    return 3;
+                default:
+                    throw new InvalidProgramException();
+            }
+        }
+
+        private static IR.MethodEntry BuildIRTree(MethodDefinition mdef)
+        {
+            Stack<IR.InstructionElement> stack = new Stack<IR.InstructionElement>();
+            List<IR.InstructionElement> roots = new List<IR.InstructionElement>();
+
+            foreach (Mono.Cecil.Cil.Instruction x in mdef.Body.Instructions)
+            {
+                IR.InstructionElement[] childnodes = new IR.InstructionElement[NumberOfElementsPoped(x.OpCode.StackBehaviourPop)];
+                for (int i = 0; i < childnodes.Length; i++)
+                    childnodes[i] = stack.Pop();
+
+                if (x.OpCode.StackBehaviourPush == Mono.Cecil.Cil.StackBehaviour.Push0)
+                {
+                    if (stack.Count != 0 && x.OpCode.FlowControl != Mono.Cecil.Cil.FlowControl.Next && x.OpCode.FlowControl != Mono.Cecil.Cil.FlowControl.Call)
+                        throw new InvalidProgramException();
+
+                    roots.Add(new IR.InstructionElement(childnodes, x));
+                }
+                else
+                    stack.Push(new IR.InstructionElement(childnodes, x));
+            }
+
+            if (stack.Count != 0)
+                throw new InvalidProgramException();
+            return new IR.MethodEntry(mdef) { Childnodes = roots.ToArray() };
+        }
     }
 }
