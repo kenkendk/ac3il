@@ -12,9 +12,10 @@ namespace JITTester
         {
             try
             {
+                string startPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
 
                 SPEJIT.SPEJITCompiler compiler = new SPEJIT.SPEJITCompiler();
-                List<JITManager.ICompiledMethod> methods = JITManager.JITManager.JIT(new SPEJIT.SPEJITCompiler(), "CILFac.dll");
+                List<JITManager.ICompiledMethod> methods = JITManager.JITManager.JIT(new SPEJIT.SPEJITCompiler(), System.IO.Path.Combine(startPath, "CILFac.dll"));
 
                 //For the test setup, we want the main method to be at index 0
                 int ix = methods.FindIndex(x => x.Method.Method.Name == "SPE_Main");
@@ -27,8 +28,9 @@ namespace JITTester
                     methods.Insert(0, cm);
                 }
 
-                using (System.IO.FileStream outfile = new System.IO.FileStream(@"D:\Documents\spe-emulator\test-apps\cil-fac.elf", System.IO.FileMode.Create))
-                using (System.IO.TextWriter sw = new System.IO.StreamWriter(@"D:\Documents\spe-emulator\test-apps\cil-fac.asm"))
+                string elffile = System.IO.Path.Combine(startPath, "cil-fac.elf");
+                using (System.IO.FileStream outfile = new System.IO.FileStream(elffile, System.IO.FileMode.Create))
+                using (System.IO.TextWriter sw = new System.IO.StreamWriter(System.IO.Path.Combine(startPath, "cil-fac.asm")))
                 {
                     compiler.EmitELFStream(outfile, sw, methods);
 
@@ -43,7 +45,7 @@ namespace JITTester
                     }*/
                 }
 
-                SPEEmulatorTestApp.Program.Main(new string[] { @"D:\Documents\spe-emulator\test-apps\cil-fac.elf" });
+                SPEEmulatorTestApp.Program.Main(new string[] {elffile });
             }
             catch (Exception ex)
             {
