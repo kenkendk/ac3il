@@ -2,13 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using JITManager;
 
 namespace SPEJIT
 {
     /// <summary>
     /// Class that converts IR to SPE opcodes
     /// </summary>
-    public class SPEJIT
+    public class SPEJITCompiler : IJITCompiler
     {
         /// <summary>
         /// The fixed register number used for special register LINK RETURN
@@ -33,6 +34,11 @@ namespace SPEJIT
         /// The size of a single instruction in bytes
         /// </summary>
         public const int INSTRUCTION_SIZE = 4;
+
+        /// <summary>
+        /// The number of bytes into the bootloader where execution should start
+        /// </summary>
+        private const uint BOOTLOADER_START_OFFSET = INSTRUCTION_SIZE * 2;
 
         /// <summary>
         /// The first register used for local variables
@@ -63,7 +69,7 @@ namespace SPEJIT
         /// <summary>
         /// Static initializer for building instruction table based on reflection
         /// </summary>
-        static SPEJIT()
+        static SPEJITCompiler()
         {
             _opTranslations = BuildTranslationTable();
         }
@@ -90,17 +96,36 @@ namespace SPEJIT
 
         };
 
+        /// <summary>
+        /// Produces an ELF compatible binary output stream with the compiled methods
+        /// </summary>
+        /// <param name="outstream">The output stream</param>
+        /// <param name="assemblyOutput">The assembly text output, can be null</param>
+        /// <param name="methods">The compiled methods</param>
+        public void EmitELFStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> methods)
+        {
+            using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
+            {
+                EmitInstructionStream(ms, assemblyOutput, methods);
+
+                SPEEmulator.ELFReader.EmitELFHeader((uint)ms.Length, BOOTLOADER_START_OFFSET, outstream);
+                
+                ms.Position = 0;
+                ms.CopyTo(outstream);
+            }
+        }
+
 
         /// <summary>
         /// Emits an instruction stream.
         /// </summary>
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
-        /// <param name="methods">The compiled methods</param>
-        internal void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<IR.MethodEntry> methods)
+        /// <param name="methods">The methods to compile</param>
+        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<JITManager.IR.MethodEntry> methods)
         {
-            List<CompiledMethod> cmps = new List<CompiledMethod>();
-            foreach (IR.MethodEntry me in methods)
+            List<ICompiledMethod> cmps = new List<ICompiledMethod>();
+            foreach (JITManager.IR.MethodEntry me in methods)
                 cmps.Add(JIT(me));
 
             EmitInstructionStream(outstream, assemblyOutput, cmps);
@@ -112,7 +137,7 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The compiled methods</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<CompiledMethod> methods)
+        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> methods)
         {
             List<SPEEmulator.OpCodes.Bases.Instruction> output = new List<SPEEmulator.OpCodes.Bases.Instruction>();
             output.AddRange(BOOT_LOADER);
@@ -140,7 +165,7 @@ namespace SPEJIT
 
             //All instructions are JIT'ed, so flush them as binary output
             foreach (SPEEmulator.OpCodes.Bases.Instruction i in output)
-                outstream.Write(BitConverter.GetBytes(i.Value), 0, 4);
+                outstream.Write(ReverseEndian(BitConverter.GetBytes(i.Value)), 0, 4);
 
             //If there is an assemblyStream present, write text representation
             if (assemblyOutput != null)
@@ -157,17 +182,25 @@ namespace SPEJIT
 
         }
 
+        private static byte[] ReverseEndian(byte[] input)
+        {
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(input);
+            return input;
+        }
+
         /// <summary>
         /// This contains a handwritten boot kernel that handles startup and call resolution
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] BOOT_LOADER = new SPEEmulator.OpCodes.Bases.Instruction[] {
-            new SPEEmulator.OpCodes.stop(), //First entry (0x0) is always set to 0
+            new SPEEmulator.OpCodes.stop(), //First entry (0x0) is always set to 0, used for setting 
             new SPEEmulator.OpCodes.stop(), //Second entry (0x4) is reserved for the pointer to LS startup data
 
             //Start by setting up the the SP
-            new SPEEmulator.OpCodes.il(_SP, (uint)(0x10000 - 8)), //Set SP to LS_SIZE - 8
-            new SPEEmulator.OpCodes.xor(0, 0, 0), //Clear register $0
-            new SPEEmulator.OpCodes.stqd(_SP, 0, 0x0), //Set the Back Chain to zero
+            new SPEEmulator.OpCodes.il(0, 0), //Clear register $0
+            new SPEEmulator.OpCodes.ila(_SP, (uint)(0x40000 - REGISTER_SIZE)), //Set SP to LS_SIZE - 8
+            new SPEEmulator.OpCodes.stqd(0, _SP, 0x0), //Set the Back Chain to zero
+            new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-REGISTER_SIZE) & 0x3ff)), //Increment SP
 
             //Entry point for the application, start by loading the argument list
             new SPEEmulator.OpCodes.lqd(_TMP0, 0, 0x4),
@@ -178,7 +211,7 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.ai(_TMP2, _TMP2, REGISTER_SIZE), //Next address
 
             //Start loop
-            new SPEEmulator.OpCodes.brz(_TMP0, 0xffff), //while($75 != 0)
+            new SPEEmulator.OpCodes.brz(_TMP0, 9), //while($75 != 0)
             
             //Load value from list into current register
             new SPEEmulator.OpCodes.lqd(_ARG0, _TMP2, REGISTER_SIZE),
@@ -193,7 +226,7 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.lqr(_TMP3, (uint)((-4 * INSTRUCTION_SIZE) & 0x3ff)), //Increment the target register <---------------- Fix this ----------------------------------
             new SPEEmulator.OpCodes.stqr(_TMP3, (uint)((-6 * INSTRUCTION_SIZE) & 0x3ff)), //Write the new instruction
 
-            new SPEEmulator.OpCodes.br(_TMP0, 0xffff), //End of while loop
+            new SPEEmulator.OpCodes.br(_TMP0, (uint)(-7 & 0x3ff)), //End of while loop
 
             //Jump to the address of the entry function
             new SPEEmulator.OpCodes.lqd(_TMP2, _TMP0, 0x0), //Load the address of the entry function
@@ -215,7 +248,7 @@ namespace SPEJIT
         };
 
 
-        internal CompiledMethod JIT(IR.MethodEntry method)
+        public ICompiledMethod JIT(JITManager.IR.MethodEntry method)
         {
             CompiledMethod state = new CompiledMethod(method);
             SPEOpCodeMapper mapper = new SPEOpCodeMapper(state);
@@ -248,7 +281,7 @@ namespace SPEJIT
                 mapper.CopyRegister((uint)(_ARG0 + i), (uint)(_LV0 + locals + i));
 
             //Now add each parsed subtree
-            foreach (IR.InstructionElement el in method.Childnodes)
+            foreach (JITManager.IR.InstructionElement el in method.Childnodes)
                 RecursiveTranslate(state, mapper, el);
 
             //If we had to store locals, we must restore the local variable registers
@@ -270,9 +303,9 @@ namespace SPEJIT
         }
 
 
-        private void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, IR.InstructionElement el)
+        private static void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, JITManager.IR.InstructionElement el)
         {
-            foreach (IR.InstructionElement els in el.Childnodes)
+            foreach (JITManager.IR.InstructionElement els in el.Childnodes)
                 RecursiveTranslate(state, mapper, els);
 
             System.Reflection.MethodInfo translator;

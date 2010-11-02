@@ -7,6 +7,11 @@ namespace CILFac
 {
     public static class Fac
     {
+        public static void SPE_Main()
+        {
+            long x = Factorial(10);
+        }
+
         public static long Factorial(long number)
         {
             if (number == 0)

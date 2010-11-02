@@ -4,42 +4,31 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 
-namespace SPEJIT
+namespace JITManager
 {
-    public class TestJIT
+    public class JITManager
     {
-        private static Dictionary<int, List<KeyValuePair<int,int>>> branches = new Dictionary<int, List<KeyValuePair<int,int>>>();
-        private static List<SPEEmulator.OpCodes.Bases.Instruction> instr = new List<SPEEmulator.OpCodes.Bases.Instruction>();
 
-        public static void AttemptJIT()
+        public static List<ICompiledMethod> JIT(IJITCompiler compiler, string assemblyfile)
         {
-            if (System.IO.File.Exists("CILFac.dll"))
+            if (System.IO.File.Exists(assemblyfile))
             {
-                AssemblyDefinition asm = AssemblyFactory.GetAssembly("CILFac.dll");
+                AssemblyDefinition asm = AssemblyFactory.GetAssembly(assemblyfile);
                 ModuleDefinition mod = asm.MainModule;
-                TypeDefinition tref = mod.Types["CILFac.Fac"];
 
-                SPEJIT jitter = new SPEJIT();
-                List<CompiledMethod> methods = new List<CompiledMethod>();
+                List<ICompiledMethod> methods = new List<ICompiledMethod>();
+                foreach(TypeDefinition tref in mod.Types)
+                    foreach (MethodDefinition mdef in tref.Methods)
+                    {
+                        IR.MethodEntry root = BuildIRTree(mdef);
+                        //RegisterAllocator(root);
+                        methods.Add(compiler.JIT(root));
+                    }
 
-                foreach (MethodDefinition mdef in tref.Methods)
-                {
-                    IR.MethodEntry root = BuildIRTree(mdef);
-                    //RegisterAllocator(root);
-                    methods.Add(jitter.JIT(root));
-                }
-
-                using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
-                using (System.IO.StringWriter sw = new System.IO.StringWriter())
-                {
-                    jitter.EmitInstructionStream(ms, sw, methods);
-
-                    Console.WriteLine("Converted output size in bytes: " + ms.Length);
-                    Console.Write(sw.ToString());
-                }
+                return methods;
             }
             else
-                throw new Exception("Could not find program file");
+                throw new Exception("Could not find program file: " + assemblyfile);
         }
 
         private static void RegisterAllocator(IR.MethodEntry root)
@@ -115,9 +104,18 @@ namespace SPEJIT
             Stack<IR.InstructionElement> stack = new Stack<IR.InstructionElement>();
             List<IR.InstructionElement> roots = new List<IR.InstructionElement>();
 
+            int returnElements = 1;
+            if (mdef.ReturnType.ReturnType.FullName == "System.Void")
+                returnElements = 0;
+
             foreach (Mono.Cecil.Cil.Instruction x in mdef.Body.Instructions)
             {
-                IR.InstructionElement[] childnodes = new IR.InstructionElement[NumberOfElementsPoped(x.OpCode.StackBehaviourPop)];
+                IR.InstructionElement[] childnodes;
+                if (x.OpCode.Code == Mono.Cecil.Cil.Code.Ret)
+                    childnodes = new IR.InstructionElement[returnElements];
+                else
+                    childnodes = new IR.InstructionElement[NumberOfElementsPoped(x.OpCode.StackBehaviourPop)];
+
                 for (int i = 0; i < childnodes.Length; i++)
                     childnodes[i] = stack.Pop();
 

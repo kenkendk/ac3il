@@ -2,18 +2,20 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using JITManager;
+using JITManager.IR;
 
 namespace SPEJIT
 {
     internal class SPEOpCodeMapper
     {
-        public const uint _SP = SPEJIT._SP;
-        public const uint _LR = SPEJIT._LR;
-        public const uint _LV0 = SPEJIT._LV0;
+        public const uint _SP = SPEJITCompiler._SP;
+        public const uint _LR = SPEJITCompiler._LR;
+        public const uint _LV0 = SPEJITCompiler._LV0;
 
         //ABI specification states that $75 to $79 are scratch registers
-        public const uint _TMP0 = SPEJIT._TMP0;
-        public const uint _TMP1 = SPEJIT._TMP1;
+        public const uint _TMP0 = SPEJITCompiler._TMP0;
+        public const uint _TMP1 = SPEJITCompiler._TMP1;
 
         /// <summary>
         /// The inverse value of register size, used in add operations
@@ -23,7 +25,7 @@ namespace SPEJIT
         /// <summary>
         /// The register used for the first argument
         /// </summary>
-        public const uint _ARG0 = SPEJIT._ARG0;
+        public const uint _ARG0 = SPEJITCompiler._ARG0;
 
         /// <summary>
         /// The max allowed number of function arguments
@@ -33,7 +35,7 @@ namespace SPEJIT
         /// <summary>
         /// The size of a register in bytes when placed on stack
         /// </summary>
-        public const int REGISTERS_SIZE = SPEJIT.REGISTER_SIZE;
+        public const int REGISTERS_SIZE = SPEJITCompiler.REGISTER_SIZE;
 
         //NOTE: This code uses the convention that _SP points to the first unused element on the stack,
         // eg. the stack top is _SP - REGISTERS_SIZE, and the next element is _SP - REGISTERS_SIZE, so
@@ -104,81 +106,87 @@ namespace SPEJIT
             m_state = state;
         }
 
-        public void nop(IR.InstructionElement el)
+        public void nop(InstructionElement el)
         {
             m_state.Instructions.Add(new SPEEmulator.OpCodes.nop(0));
         }
 
 
-        public void Ldarg_0(IR.InstructionElement el)
+        public void Ldarg_0(InstructionElement el)
         {
             PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count));
         }
 
-        public void Ldarg_1(IR.InstructionElement el)
+        public void Ldarg_1(InstructionElement el)
         {
             PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + 1));
         }
 
-        public void Ldc_I4_0(IR.InstructionElement el)
+        public void Ldc_I4_0(InstructionElement el)
         {
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 0));
             PushStack(_TMP0);
         }
 
-        public void Ldc_I4_1(IR.InstructionElement el)
+        public void Ldc_I4_1(InstructionElement el)
         {
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 1));
             PushStack(_TMP0);
         }
 
-        public void Conv_I8(IR.InstructionElement el)
+        public void Ldc_I4_S(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)(sbyte)el.Instruction.Operand));
+            PushStack(_TMP0);
+        }
+
+        public void Conv_I8(InstructionElement el)
         {
             PopStack(_TMP0);
             m_state.Instructions.Add(new SPEEmulator.OpCodes.xswd(_TMP0, _TMP0));
             PushStack(_TMP0);
         }
 
-        public void Ceq(IR.InstructionElement el)
+        public void Ceq(InstructionElement el)
         {
             BinaryOp(new SPEEmulator.OpCodes.ceq(_TMP0, _TMP0, _TMP1));
         }
 
-        public void Stloc_0(IR.InstructionElement el)
+        public void Stloc_0(InstructionElement el)
         {
             PopStack(_LV0);
         }
 
-        public void Stloc_1(IR.InstructionElement el)
+        public void Stloc_1(InstructionElement el)
         {
             PopStack(_LV0 + 1u);
         }
 
-        public void Ldloc_0(IR.InstructionElement el)
+        public void Ldloc_0(InstructionElement el)
         {
             PushStack(_LV0);
         }
 
-        public void Ldloc_1(IR.InstructionElement el)
+        public void Ldloc_1(InstructionElement el)
         {
             PushStack(_LV0 + 1u);
         }
 
-        public void Brtrue_S(IR.InstructionElement el)
+        public void Brtrue_S(InstructionElement el)
         {
             PopStack(_TMP0);
             m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
             m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_TMP0, 0xffff));
         }
 
-        public void Br_S(IR.InstructionElement el)
+        public void Br_S(InstructionElement el)
         {
             PopStack(_TMP0);
             m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
             m_state.Instructions.Add(new SPEEmulator.OpCodes.br(_TMP0, 0xffff));
         }
 
-        public void Bne_un_s(IR.InstructionElement el)
+        public void Bne_un_s(InstructionElement el)
         {
             PopStack(_TMP0);
             PopStack(_TMP1);
@@ -188,17 +196,17 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_TMP0, 0xffff));
         }
 
-        public void Sub(IR.InstructionElement el)
+        public void Sub(InstructionElement el)
         {
             BinaryOp(new SPEEmulator.OpCodes.sf(_TMP0, _TMP1, _TMP0));
         }
 
-        public void Mul(IR.InstructionElement el)
+        public void Mul(InstructionElement el)
         {
             BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
         }
 
-        public void Call(IR.InstructionElement el)
+        public void Call(InstructionElement el)
         {
             Mono.Cecil.MethodDefinition mdef = (Mono.Cecil.MethodDefinition)el.Instruction.Operand;
 
@@ -214,13 +222,12 @@ namespace SPEJIT
             // i16 (set to 0xffff) should be replaced with correct value, when it is known!
             m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(1, 0xffff));
 
-            //TODO: Not sure if void is detected this way
-            if (mdef.ReturnType != null)
+            if (mdef.ReturnType.ReturnType.FullName != "System.Void")
                 PushStack(_ARG0);
 
         }
 
-        public void Ret(IR.InstructionElement el)
+        public void Ret(InstructionElement el)
         {
             PopStack(_ARG0);
         }

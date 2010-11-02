@@ -2,13 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using JITManager;
+using JITManager.IR;
 
 namespace SPEJIT
 {
     /// <summary>
     /// This class contains all required 
     /// </summary>
-    public class CompiledMethod
+    public class CompiledMethod : ICompiledMethod
     {
         /// <summary>
         /// A list of known labels, the key is the label name and the value is the offset of the JIT'ed sequence
@@ -48,11 +50,11 @@ namespace SPEJIT
         /// <summary>
         /// The method that this compilation concerns
         /// </summary>
-        private IR.MethodEntry m_method;
+        private MethodEntry m_method;
 
-        internal IR.MethodEntry Method { get { return m_method; } }
+        public MethodEntry Method { get { return m_method; } }
 
-        internal CompiledMethod(IR.MethodEntry method)
+        internal CompiledMethod(MethodEntry method)
         {
             m_method = method;
             m_labels = new Dictionary<string, int>();
