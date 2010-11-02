@@ -20,7 +20,7 @@ namespace SPEJIT
         /// <summary>
         /// The inverse value of register size, used in add operations
         /// </summary>
-        public const uint REGISTER_SIZE_NEGATED = (-REGISTERS_SIZE & 0x3ff);
+        public const uint REGISTER_SIZE_NEGATED = (-REGISTER_SIZE & 0x3ff);
 
         /// <summary>
         /// The register used for the first argument
@@ -35,11 +35,11 @@ namespace SPEJIT
         /// <summary>
         /// The size of a register in bytes when placed on stack
         /// </summary>
-        public const int REGISTERS_SIZE = SPEJITCompiler.REGISTER_SIZE;
+        public const int REGISTER_SIZE = SPEJITCompiler.REGISTER_SIZE;
 
         //NOTE: This code uses the convention that _SP points to the first unused element on the stack,
-        // eg. the stack top is _SP - REGISTERS_SIZE, and the next element is _SP - REGISTERS_SIZE, so
-        // writing a new element is always stqd(_SP, value) and then SP += REGISTERS_SIZE
+        // eg. the stack top is _SP - REGISTER_SIZE, and the next element is _SP - REGISTER_SIZE, so
+        // writing a new element is always stqd(_SP, value) and then SP += REGISTER_SIZE
         //TODO: Figure out if this is ABI compatible
 
         /// <summary>
@@ -48,8 +48,8 @@ namespace SPEJIT
         /// <param name="targetRegister">The register into which the value is written</param>
         public void PopStack(uint targetRegister)
         {
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(targetRegister, _SP, REGISTER_SIZE_NEGATED));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, REGISTER_SIZE_NEGATED));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, REGISTER_SIZE));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(targetRegister, _SP, 0));
             m_state.StackDepth--;
         }
 
@@ -60,7 +60,7 @@ namespace SPEJIT
         public void PushStack(uint sourceRegister)
         {
             m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd(sourceRegister, _SP, 0));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, REGISTERS_SIZE));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, REGISTER_SIZE_NEGATED));
             m_state.StackDepth++;
         }
 
@@ -93,7 +93,7 @@ namespace SPEJIT
         /// <param name="targetRegister">The register to copy to</param>
         public void CopyRegister(uint sourceRegister, uint targetRegister)
         {
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(targetRegister, sourceRegister, 0));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(targetRegister, sourceRegister, 0));
         }
 
         /// <summary>
@@ -220,16 +220,16 @@ namespace SPEJIT
 
             m_state.RegisterCall(mdef);
             // i16 (set to 0xffff) should be replaced with correct value, when it is known!
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(1, 0xffff));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(0, 0xffff));
 
             if (mdef.ReturnType.ReturnType.FullName != "System.Void")
                 PushStack(_ARG0);
-
         }
 
         public void Ret(InstructionElement el)
         {
-            PopStack(_ARG0);
+            m_state.RegisterReturn();
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.br(_TMP0, 0xffff));
         }
 
     }

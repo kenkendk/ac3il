@@ -119,8 +119,10 @@ namespace SPEJIT
         {
             foreach (KeyValuePair<int, Mono.Cecil.Cil.Instruction> branch in m_branches)
             {
+                int targetInstruction = branch.Value == null ? m_instructionList.Count : m_instructionOffsets[branch.Value];
+
                 if (m_instructionList[branch.Key] is SPEEmulator.OpCodes.Bases.RI16)
-                    ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[branch.Key]).I16 = ((uint)(m_instructionOffsets[branch.Value] - branch.Key)) & 0xffff;
+                    ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[branch.Key]).I16 = ((uint)(targetInstruction - branch.Key)) & 0xffff;
                 else
                     throw new Exception("Unexpected SPE instruction where a branch should have been?");
             }
@@ -131,14 +133,20 @@ namespace SPEJIT
             foreach (KeyValuePair<int, Mono.Cecil.MethodDefinition> call in m_calls)
             {
                 int callOffset = methodOffsets.ContainsKey(call.Value) ? methodOffsets[call.Value] : callhandlerOffset;
+                int ownOffset = methodOffsets[this.Method.Method];
 
                 if (m_instructionList[call.Key] is SPEEmulator.OpCodes.Bases.RI16)
-                    ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[call.Key]).I16 = (uint)(callOffset & 0xffff);
+                    ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[call.Key]).I16 = (uint)((callOffset - (ownOffset + call.Key)) & 0xffff);
                 else
                     throw new Exception("Unexpected SPE instruction where a branch should have been?");
             }
                 
 
+        }
+
+        internal void RegisterReturn()
+        {
+            m_branches.Add(new KeyValuePair<int, Mono.Cecil.Cil.Instruction>(m_instructionList.Count, null));
         }
     }
 }

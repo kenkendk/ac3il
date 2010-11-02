@@ -318,6 +318,14 @@ namespace SPEJIT
             for (int i = 0; i < permRegs; i++)
                 mapper.PopStack((uint)(_LV0 + locals - i - 1));
 
+
+            //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
+            state.EndFunction();
+
+            //If the function returns a value, place it in $3
+            if (state.Method.Method.ReturnType.ReturnType.FullName != "System.Void")
+                mapper.PopStack(_ARG0);
+
             //We are done, so add the method epilogue
             state.Instructions.AddRange(METHOD_EPILOGUE);
 
@@ -326,8 +334,6 @@ namespace SPEJIT
             ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[2]).I10 = (uint)((-(state.MaxStackDepth * REGISTER_SIZE)) & 0x3ff);
             ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[state.Instructions.Count - 3]).I10 = state.MaxStackDepth * (REGISTER_SIZE / 4);
 
-            //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
-            state.EndFunction();
 
             return state;
         }
