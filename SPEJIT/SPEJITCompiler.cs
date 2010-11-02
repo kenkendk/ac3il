@@ -38,7 +38,7 @@ namespace SPEJIT
         /// <summary>
         /// The number of bytes into the bootloader where execution should start
         /// </summary>
-        private const uint BOOTLOADER_START_OFFSET = INSTRUCTION_SIZE * 2;
+        private const uint BOOTLOADER_START_OFFSET = INSTRUCTION_SIZE * 4;
 
         /// <summary>
         /// The first register used for local variables
@@ -50,6 +50,7 @@ namespace SPEJIT
         public const uint _TMP1 = 76;
         public const uint _TMP2 = 77;
         public const uint _TMP3 = 78;
+        public const uint _TMP4 = 79;
 
         /// <summary>
         /// The register used for the first argument
@@ -79,7 +80,7 @@ namespace SPEJIT
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] METHOD_PROLOGUE = new SPEEmulator.OpCodes.Bases.Instruction[] 
         {
-            new SPEEmulator.OpCodes.stqd(_LR, _SP, LR_OFFSET),
+            new SPEEmulator.OpCodes.stqd(_LR, _SP, 1),
             new SPEEmulator.OpCodes.stqd(_SP, _SP, 0), //0 is placeholder for negative stackframe size
             new SPEEmulator.OpCodes.ai(_SP, _SP, 0)  //0 is placeholder for negative stackframe size
         };
@@ -91,7 +92,7 @@ namespace SPEJIT
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] METHOD_EPILOGUE = new SPEEmulator.OpCodes.Bases.Instruction[] 
         {
             new SPEEmulator.OpCodes.ai(_SP, _SP, 0), //0 is placeholder for stackframe size
-            new SPEEmulator.OpCodes.lqd(_LR, _SP, LR_OFFSET),
+            new SPEEmulator.OpCodes.lqd(_LR, _SP, 1),
             new SPEEmulator.OpCodes.bi(_LR, _LR)
 
         };
@@ -139,11 +140,17 @@ namespace SPEJIT
         /// <param name="methods">The compiled methods</param>
         public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> methods)
         {
+            //TODO: Not sure if the SPE always starts at address 0, or if the start offset can be specified
+            //Seems like all ELF files have a special ".init" section
             List<SPEEmulator.OpCodes.Bases.Instruction> output = new List<SPEEmulator.OpCodes.Bases.Instruction>();
             output.AddRange(BOOT_LOADER);
 
             int callhandlerOffset = output.Count;
             output.AddRange(CALL_HANDLER);
+
+            //Patch the entry point adress
+            int entryfunctionOffset = output.Count;
+            ((SPEEmulator.OpCodes.brsl)output[callhandlerOffset - 2]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + 2);
 
             //Before we emit the actual code, we need to patch all calls
             Dictionary<Mono.Cecil.MethodDefinition, int> methodOffsets = new Dictionary<Mono.Cecil.MethodDefinition, int>();
@@ -193,44 +200,67 @@ namespace SPEJIT
         /// This contains a handwritten boot kernel that handles startup and call resolution
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] BOOT_LOADER = new SPEEmulator.OpCodes.Bases.Instruction[] {
-            new SPEEmulator.OpCodes.stop(), //First entry (0x0) is always set to 0, used for setting 
-            new SPEEmulator.OpCodes.stop(), //Second entry (0x4) is reserved for the pointer to LS startup data
+            new SPEEmulator.OpCodes.stop(), //First entry (0x0) is always set to 0, used for testing null pointer read/writes 
+            new SPEEmulator.OpCodes.stop(), //Second entry (0x4) is reserved for the argument count
+            new SPEEmulator.OpCodes.stop(), //Third entry (0x8) is reserved for the pointer to LS startup data
+            new SPEEmulator.OpCodes.stop(), //Fourth entry is reserved for padding
 
             //Start by setting up the the SP
             new SPEEmulator.OpCodes.il(0, 0), //Clear register $0
-            new SPEEmulator.OpCodes.ila(_SP, (uint)(0x40000 - REGISTER_SIZE)), //Set SP to LS_SIZE - 8
+            new SPEEmulator.OpCodes.ila(_SP, (uint)(0x40000 - REGISTER_SIZE)), //Set SP to LS_SIZE - 16
             new SPEEmulator.OpCodes.stqd(0, _SP, 0x0), //Set the Back Chain to zero
             new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-REGISTER_SIZE) & 0x3ff)), //Increment SP
 
-            //Entry point for the application, start by loading the argument list
-            new SPEEmulator.OpCodes.lqd(_TMP0, 0, 0x4),
+            //Entry point for the application, start by loading the argument count
+            new SPEEmulator.OpCodes.lqd(_TMP0, 0, 0x0), //Load the value at position 0x0
 
-            //Initialize loop
-            new SPEEmulator.OpCodes.il(_TMP1, _ARG0), //First argument register is $3
-            new SPEEmulator.OpCodes.lqd(_TMP2, _TMP0, 0x0), //Get the argument count from the argument list
-            new SPEEmulator.OpCodes.ai(_TMP2, _TMP2, REGISTER_SIZE), //Next address
+            //Intialize loop by reading count and argument offset
+            new SPEEmulator.OpCodes.fsmbi(_TMP1, 0xf000), //Prepare a select mask
+            new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP0, 0x8), //Move the argument start adress into preferred slot 
+            new SPEEmulator.OpCodes.and(_TMP2, _TMP2, _TMP1), //Exclude the unwanted positions for adress
+            new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 0x4), //Move the argument count into preferred slot 
+            new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Exclude the unwanted positions for count
+
+            new SPEEmulator.OpCodes.brz(_TMP0, 20), //Skip the initialization stuff if the start has no arguments
+
+            //TMP0 is the argument counter, TMP1 is the target register increment value, TMP2 is the argument adress
+            new SPEEmulator.OpCodes.ila(_TMP1, 0x1), //We need to increment the target register with 1
+            new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 12), //The target register value is located in byte 3
+
+            //Load the current storage operation
+            new SPEEmulator.OpCodes.lqr(_TMP3, 4), //Load current instruction
+            new SPEEmulator.OpCodes.ori(_TMP4, _TMP3, 0), //Save an unmodified copy
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
 
             //Start loop
-            new SPEEmulator.OpCodes.brz(_TMP0, 9), //while($75 != 0)
+            new SPEEmulator.OpCodes.brz(_TMP0, 11), //while($75 != 0)
             
-            //Load value from list into current register
-            new SPEEmulator.OpCodes.lqd(_ARG0, _TMP2, REGISTER_SIZE),
+                //Load value from list into current register -> NOTE: SELF MODIFYING CODE HERE!
+                new SPEEmulator.OpCodes.lqd(_ARG0, _TMP2, 0),
 
-            //Adjust offsets
-            new SPEEmulator.OpCodes.ai(_TMP1, _TMP1, 0x1), //Next register
-            new SPEEmulator.OpCodes.ai(_TMP2, _TMP2, REGISTER_SIZE), //Next address
-            new SPEEmulator.OpCodes.ai(_TMP0, _TMP0, (uint)(-REGISTER_SIZE & 0x3ff)), //Decrement counter
+                //Adjust offsets
+                new SPEEmulator.OpCodes.ai(_TMP2, _TMP2, REGISTER_SIZE), //Next address
+                new SPEEmulator.OpCodes.ai(_TMP0, _TMP0, (uint)(-1 & 0x3ff)), //Decrement counter
 
-            //Modify instruction to use next register
-            new SPEEmulator.OpCodes.lqr(_TMP3, (uint)((-4 * INSTRUCTION_SIZE) & 0x3ff)), //Load current instruction
-            new SPEEmulator.OpCodes.lqr(_TMP3, (uint)((-4 * INSTRUCTION_SIZE) & 0x3ff)), //Increment the target register <---------------- Fix this ----------------------------------
-            new SPEEmulator.OpCodes.stqr(_TMP3, (uint)((-6 * INSTRUCTION_SIZE) & 0x3ff)), //Write the new instruction
+                //Modify instruction to use next register
+                new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+                new SPEEmulator.OpCodes.lqr(_TMP3, (uint)((-4) & 0xffff)), //Load current instruction
+                new SPEEmulator.OpCodes.a(_TMP3, _TMP3, _TMP1), //Increment the target register
+        
+                new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+                new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+                new SPEEmulator.OpCodes.stqr(_TMP3, (uint)((-8) & 0xffff)), //Write the new instruction
 
-            new SPEEmulator.OpCodes.br(_TMP0, (uint)(-7 & 0x3ff)), //End of while loop
+            new SPEEmulator.OpCodes.br(_TMP0, (uint)(-10 & 0xffff)), //End of while loop
+
+            //We restore the modified instruction, so the bootloader can be called twice
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+            new SPEEmulator.OpCodes.stqr(_TMP4, (uint)(-12 & 0xffff)), //Write the unmodified instruction back
 
             //Jump to the address of the entry function
-            new SPEEmulator.OpCodes.lqd(_TMP2, _TMP0, 0x0), //Load the address of the entry function
-            new SPEEmulator.OpCodes.bra(_TMP2, 0x0), //Jump to entry
+            new SPEEmulator.OpCodes.brsl(_LR, 0xffff), //Jump to entry
+            new SPEEmulator.OpCodes.stop()
         };
 
 
@@ -292,9 +322,9 @@ namespace SPEJIT
             state.Instructions.AddRange(METHOD_EPILOGUE);
 
             //Now that we have the stack size, we must patch the prologue/epilogue with the size
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[1]).I10 = (~(state.MaxStackDepth * REGISTER_SIZE)) & 0x3ff;
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[2]).I10 = (~(state.MaxStackDepth * REGISTER_SIZE)) & 0x3ff;
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[state.Instructions.Count - 3]).I10 = state.MaxStackDepth * REGISTER_SIZE;
+            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[1]).I10 =(uint)((-(state.MaxStackDepth * (REGISTER_SIZE / 4))) & 0x3ff);
+            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[2]).I10 = (uint)((-(state.MaxStackDepth * REGISTER_SIZE)) & 0x3ff);
+            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[state.Instructions.Count - 3]).I10 = state.MaxStackDepth * (REGISTER_SIZE / 4);
 
             //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
             state.EndFunction();
