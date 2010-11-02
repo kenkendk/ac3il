@@ -1,19 +1,19 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPEJIT", "SPEJIT.csproj", "{4EEE584A-B363-477D-AA89-602849551E1C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JITTester", "JITTester\JITTester.csproj", "{6793EB19-4427-42EF-986A-6B21E78328C7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CILFac", "..\CILFac\CILFac.csproj", "{2889D231-5459-4948-8044-7463D59BD975}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPEJIT", "SPEJIT\SPEJIT.csproj", "{4EEE584A-B363-477D-AA89-602849551E1C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JITTester", "..\JITTester\JITTester.csproj", "{6793EB19-4427-42EF-986A-6B21E78328C7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CILFac", "CILFac\CILFac.csproj", "{2889D231-5459-4948-8044-7463D59BD975}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPEEmulator", "..\..\spe-emulator\SPEEmulator\SPEEmulator.csproj", "{2BC83C9E-7D34-4F3F-81BB-1855B5C55BE2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPEEmulator", "..\spe-emulator\SPEEmulator\SPEEmulator.csproj", "{2BC83C9E-7D34-4F3F-81BB-1855B5C55BE2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPEEmulatorTestApp", "..\..\spe-emulator\SPEEmulatorTestApp\SPEEmulatorTestApp.csproj", "{6A7C2746-5E6B-4971-B4F4-0017F0958E79}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPEEmulatorTestApp", "..\spe-emulator\SPEEmulatorTestApp\SPEEmulatorTestApp.csproj", "{6A7C2746-5E6B-4971-B4F4-0017F0958E79}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JITManager", "..\JITManager\JITManager.csproj", "{448B4DFB-CC22-4D02-8FD9-877892457BA9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JITManager", "JITManager\JITManager.csproj", "{448B4DFB-CC22-4D02-8FD9-877892457BA9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CILArray", "..\CILArray\CILArray.csproj", "{3061D287-F87A-46F3-BE9E-F5E9107EA8CA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CILArray", "CILArray\CILArray.csproj", "{3061D287-F87A-46F3-BE9E-F5E9107EA8CA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
