@@ -310,21 +310,28 @@ namespace SPEJIT
             for (int i = 0; i < args; i++)
                 mapper.CopyRegister((uint)(_ARG0 + i), (uint)(_LV0 + locals + i));
 
+            int requiredStackDepth = state.StackDepth;
+
             //Now add each parsed subtree
             foreach (JITManager.IR.InstructionElement el in method.Childnodes)
+            {
                 RecursiveTranslate(state, mapper, el);
+                System.Diagnostics.Trace.Assert(state.StackDepth >= requiredStackDepth);
+
+            }
+
+            //If the function returns a value, place it in $3
+            if (state.Method.Method.ReturnType.ReturnType.FullName != "System.Void")
+                mapper.PopStack(_ARG0);
 
             //If we had to store locals, we must restore the local variable registers
             for (int i = 0; i < permRegs; i++)
                 mapper.PopStack((uint)(_LV0 + locals - i - 1));
 
+            System.Diagnostics.Trace.Assert(state.StackDepth == 0);
 
             //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
             state.EndFunction();
-
-            //If the function returns a value, place it in $3
-            if (state.Method.Method.ReturnType.ReturnType.FullName != "System.Void")
-                mapper.PopStack(_ARG0);
 
             //We are done, so add the method epilogue
             state.Instructions.AddRange(METHOD_EPILOGUE);
@@ -332,7 +339,7 @@ namespace SPEJIT
             //Now that we have the stack size, we must patch the prologue/epilogue with the size
             ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[1]).I10 =(uint)((-(state.MaxStackDepth * (REGISTER_SIZE / 4))) & 0x3ff);
             ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[2]).I10 = (uint)((-(state.MaxStackDepth * REGISTER_SIZE)) & 0x3ff);
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[state.Instructions.Count - 3]).I10 = state.MaxStackDepth * (REGISTER_SIZE / 4);
+            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[state.Instructions.Count - 3]).I10 = state.MaxStackDepth * (REGISTER_SIZE);
 
 
             return state;

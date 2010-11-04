@@ -16,6 +16,8 @@ namespace SPEJIT
         //ABI specification states that $75 to $79 are scratch registers
         public const uint _TMP0 = SPEJITCompiler._TMP0;
         public const uint _TMP1 = SPEJITCompiler._TMP1;
+        public const uint _TMP2 = SPEJITCompiler._TMP2;
+        public const uint _TMP3 = SPEJITCompiler._TMP3;
 
         /// <summary>
         /// The inverse value of register size, used in add operations
@@ -48,8 +50,7 @@ namespace SPEJIT
         /// <param name="targetRegister">The register into which the value is written</param>
         public void PopStack(uint targetRegister)
         {
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, REGISTER_SIZE));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(targetRegister, _SP, 0));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(targetRegister, _SP, (uint)m_state.StackDepth));
             m_state.StackDepth--;
         }
 
@@ -59,9 +60,8 @@ namespace SPEJIT
         /// <param name="sourceRegister"></param>
         public void PushStack(uint sourceRegister)
         {
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd(sourceRegister, _SP, 0));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, REGISTER_SIZE_NEGATED));
             m_state.StackDepth++;
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd(sourceRegister, _SP, (uint)m_state.StackDepth));
         }
 
         /// <summary>
@@ -160,7 +160,7 @@ namespace SPEJIT
             PushStack(_TMP0);
         }
 
-        public void Ceq(InstructionElement el)
+        private Type ValidateBinaryOp(InstructionElement el)
         {
             if (el.Childnodes == null || el.Childnodes.Length != 2)
                 throw new InvalidProgramException();
@@ -168,18 +168,34 @@ namespace SPEJIT
                 throw new InvalidProgramException("TODO: Type cohersion?");
 
             if (el.Childnodes[0].ReturnType == typeof(int))
+                return typeof(int);
+            else if (el.Childnodes[0].ReturnType == typeof(long))
+                return typeof(long);
+            else if (el.Childnodes[0].ReturnType == typeof(float))
+                return typeof(float);
+            else if (el.Childnodes[0].ReturnType == typeof(double))
+                return typeof(double);
+            else
+                throw new InvalidProgramException("Binary Op for <" + el.Childnodes[0].ReturnType + "> ?");
+        }
+
+        public void Ceq(InstructionElement el)
+        {
+            Type t = ValidateBinaryOp(el);
+
+            if (t == typeof(int))
                 BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.ceq(_TMP0, _TMP0, _TMP1),
                     new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
                     new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
                 });
-            else if (el.Childnodes[0].ReturnType == typeof(float))
+            else if (t == typeof(float))
                 BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.fceq(_TMP0, _TMP0, _TMP1),
                     new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
                     new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
                 });
-            else if (el.Childnodes[0].ReturnType == typeof(long))
+            else if (t == typeof(long))
             {
                 //There is no ceqd, so we make our own
                 BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
@@ -190,7 +206,7 @@ namespace SPEJIT
                     new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
                 });
             }
-            else if (el.Childnodes[0].ReturnType == typeof(double))
+            else if (t == typeof(double))
                 BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.dfceq(_TMP0, _TMP0, _TMP1),
                     new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
@@ -229,7 +245,6 @@ namespace SPEJIT
 
         public void Br_S(InstructionElement el)
         {
-            PopStack(_TMP0);
             m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
             m_state.Instructions.Add(new SPEEmulator.OpCodes.br(_TMP0, 0xffff));
         }
@@ -246,12 +261,75 @@ namespace SPEJIT
 
         public void Sub(InstructionElement el)
         {
-            BinaryOp(new SPEEmulator.OpCodes.sf(_TMP0, _TMP1, _TMP0));
+            Type t = ValidateBinaryOp(el);
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.sf(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(float))
+                BinaryOp(new SPEEmulator.OpCodes.fs(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(double))
+                BinaryOp(new SPEEmulator.OpCodes.dfs(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(long))
+            {
+                //We have no sfd :(
+                //TODO: Figure out how to do this better
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 0x8), //First 4 instructions clear the lower dword
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP1, 0x8),
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP0, _TMP0, 0x8),
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 0x8),
+                    new SPEEmulator.OpCodes.bg(_TMP2, _TMP1, _TMP0), //Calculate borrow
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 0x8),
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP2, _TMP2, 0x8),
+                    new SPEEmulator.OpCodes.sf(_TMP0, _TMP1, _TMP0), //Substract the two words
+                    new SPEEmulator.OpCodes.sf(_TMP0, _TMP2, _TMP0), //Substract the carry
+                });
+            }
         }
 
         public void Mul(InstructionElement el)
         {
-            BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
+            Type t = ValidateBinaryOp(el);
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(float))
+                BinaryOp(new SPEEmulator.OpCodes.fm(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(double))
+                BinaryOp(new SPEEmulator.OpCodes.dfm(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(long))
+            {
+                //We have no mpyd :(
+                BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
+            }
+        }
+
+        public void Add(InstructionElement el)
+        {
+            Type t = ValidateBinaryOp(el);
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.a(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(float))
+                BinaryOp(new SPEEmulator.OpCodes.fa(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(double))
+                BinaryOp(new SPEEmulator.OpCodes.dfa(_TMP0, _TMP1, _TMP0));
+            else if (t == typeof(long))
+            {
+                //We have no adw :(
+                //TODO: Figure out how to do this better
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 0x8), //First 4 instructions clear the lower dword
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP1, 0x8),
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP0, _TMP0, 0x8),
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 0x8),
+                    new SPEEmulator.OpCodes.cg(_TMP2, _TMP0, _TMP1), //Calculate carry
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 0x8),
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP2, _TMP2, 0x8),
+                    new SPEEmulator.OpCodes.a(_TMP0, _TMP1, _TMP0), //Add the two words
+                    new SPEEmulator.OpCodes.a(_TMP0, _TMP0, _TMP2), //Add the carry
+                });
+            }
         }
 
         public void Call(InstructionElement el)

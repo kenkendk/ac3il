@@ -117,7 +117,10 @@ namespace JITManager
                     childnodes = new IR.InstructionElement[NumberOfElementsPoped(x.OpCode.StackBehaviourPop)];
 
                 for (int i = childnodes.Length - 1; i >= 0; i--)
+                {
+                    System.Diagnostics.Trace.Assert(stack.Count > 0);
                     childnodes[i] = stack.Pop();
+                }
 
                 if (x.OpCode.StackBehaviourPush == Mono.Cecil.Cil.StackBehaviour.Push0)
                 {

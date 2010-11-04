@@ -19,7 +19,10 @@ namespace JITManager.IR
             this.ParentMethod = parentMethod;
 
             foreach (InstructionElement c in this.Childnodes)
+            {
+                System.Diagnostics.Trace.Assert(c != null);
                 c.Parent = this;
+            }
 
             if (instruction != null)
                 AssignReturnType();
