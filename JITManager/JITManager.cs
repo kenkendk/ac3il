@@ -124,10 +124,10 @@ namespace JITManager
                     if (stack.Count != 0 && x.OpCode.FlowControl != Mono.Cecil.Cil.FlowControl.Next && x.OpCode.FlowControl != Mono.Cecil.Cil.FlowControl.Call)
                         throw new InvalidProgramException();
 
-                    roots.Add(new IR.InstructionElement(childnodes, x));
+                    roots.Add(new IR.InstructionElement(mdef, childnodes, x));
                 }
                 else
-                    stack.Push(new IR.InstructionElement(childnodes, x));
+                    stack.Push(new IR.InstructionElement(mdef, childnodes, x));
             }
 
             if (stack.Count != 0)

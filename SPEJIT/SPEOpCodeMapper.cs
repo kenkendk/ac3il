@@ -87,6 +87,19 @@ namespace SPEJIT
         }
 
         /// <summary>
+        /// Common template for instructions that read two values, performs an operation and writes a value
+        /// </summary>
+        /// <param name="i">The actual instruction</param>
+        /// <returns>An instruction stream</returns>
+        public void BinaryOp(IEnumerable<SPEEmulator.OpCodes.Bases.Instruction> insts)
+        {
+            PopStack(_TMP1);
+            PopStack(_TMP0);
+            m_state.Instructions.AddRange(insts);
+            PushStack(_TMP0);
+        }
+
+        /// <summary>
         /// Common instruction for copying the contents of one register into another
         /// </summary>
         /// <param name="sourceRegister">The register to copy from</param>
@@ -149,7 +162,42 @@ namespace SPEJIT
 
         public void Ceq(InstructionElement el)
         {
-            BinaryOp(new SPEEmulator.OpCodes.ceq(_TMP0, _TMP0, _TMP1));
+            if (el.Childnodes == null || el.Childnodes.Length != 2)
+                throw new InvalidProgramException();
+            if (el.Childnodes[0].ReturnType != el.Childnodes[1].ReturnType)
+                throw new InvalidProgramException("TODO: Type cohersion?");
+
+            if (el.Childnodes[0].ReturnType == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.ceq(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                });
+            else if (el.Childnodes[0].ReturnType == typeof(float))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.fceq(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                });
+            else if (el.Childnodes[0].ReturnType == typeof(long))
+            {
+                //There is no ceqd, so we make our own
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.ceq(_TMP0, _TMP0, _TMP1), //This will compare words, giving 0 for equal and 0xffffffff otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP0, 4), //Prepare the tmp1 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Or the results so prefered word slot is either 0 or 0xffffffff
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                });
+            }
+            else if (el.Childnodes[0].ReturnType == typeof(double))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.dfceq(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                });
+            else
+                throw new InvalidProgramException("ceq for <" + el.Childnodes[0].ReturnType + "> ?");
         }
 
         public void Stloc_0(InstructionElement el)
@@ -176,7 +224,7 @@ namespace SPEJIT
         {
             PopStack(_TMP0);
             m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_TMP0, 0xffff));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_TMP0, 0xffff));
         }
 
         public void Br_S(InstructionElement el)
