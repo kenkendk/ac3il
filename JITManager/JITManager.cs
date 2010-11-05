@@ -39,7 +39,7 @@ namespace JITManager
                 //We assume that the output of a tree is a value
                 switch (el.Instruction.OpCode.Code)
                 {
-                    case  Mono.Cecil.Cil.Code.Stloc:
+                    case Mono.Cecil.Cil.Code.Stloc:
                     case Mono.Cecil.Cil.Code.Stloc_0:
                     case Mono.Cecil.Cil.Code.Stloc_1:
                     case Mono.Cecil.Cil.Code.Stloc_2:
@@ -69,7 +69,7 @@ namespace JITManager
             }
         }
 
-        private static int NumberOfElementsPoped(Mono.Cecil.Cil.StackBehaviour s)
+        private static int NumberOfElementsPoped(Mono.Cecil.Cil.StackBehaviour s, object operand = null)
         {
             switch (s)
             {
@@ -77,23 +77,28 @@ namespace JITManager
                     return 0;
                 case Mono.Cecil.Cil.StackBehaviour.Pop1:
                 case Mono.Cecil.Cil.StackBehaviour.Popi:
-                case Mono.Cecil.Cil.StackBehaviour.Varpop: //TODO: Varpop?
+                case Mono.Cecil.Cil.StackBehaviour.Popref:
                     return 1;
                 case Mono.Cecil.Cil.StackBehaviour.Pop1_pop1:
+                case Mono.Cecil.Cil.StackBehaviour.Popi_pop1:
                 case Mono.Cecil.Cil.StackBehaviour.Popi_popi:
                 case Mono.Cecil.Cil.StackBehaviour.Popi_popi8:
                 case Mono.Cecil.Cil.StackBehaviour.Popi_popr4:
                 case Mono.Cecil.Cil.StackBehaviour.Popi_popr8:
-                case Mono.Cecil.Cil.StackBehaviour.Popref:
                 case Mono.Cecil.Cil.StackBehaviour.Popref_pop1:
                 case Mono.Cecil.Cil.StackBehaviour.Popref_popi:
                     return 2;
-                case Mono.Cecil.Cil.StackBehaviour.Popi_popi_popi:
+                //case Mono.Cecil.Cil.StackBehaviour.Popref_popi_pop1: Hvorfor mangler denne?
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popi:
                 case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popi8:
-                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popr8:
                 case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popr4:
+                case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popr8:
                 case Mono.Cecil.Cil.StackBehaviour.Popref_popi_popref:
                     return 3;
+                case Mono.Cecil.Cil.StackBehaviour.Varpop:
+                    if (operand == null)
+                        throw new Exception("This is an unexpected exception");
+                    return ((Mono.Cecil.MethodDefinition)(operand)).Parameters.Count;
                 default:
                     throw new InvalidProgramException();
             }
@@ -114,7 +119,7 @@ namespace JITManager
                 if (x.OpCode.Code == Mono.Cecil.Cil.Code.Ret)
                     childnodes = new IR.InstructionElement[returnElements];
                 else
-                    childnodes = new IR.InstructionElement[NumberOfElementsPoped(x.OpCode.StackBehaviourPop)];
+                    childnodes = new IR.InstructionElement[NumberOfElementsPoped(x.OpCode.StackBehaviourPop, x.Operand)];
 
                 for (int i = childnodes.Length - 1; i >= 0; i--)
                 {
@@ -135,6 +140,7 @@ namespace JITManager
 
             if (stack.Count != 0)
                 throw new InvalidProgramException();
+
             return new IR.MethodEntry(mdef) { Childnodes = roots.ToArray() };
         }
     }
