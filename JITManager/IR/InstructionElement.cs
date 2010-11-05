@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using System.Diagnostics;
+using System.Reflection;
+
+
 namespace JITManager.IR
 {
     /// <summary>
@@ -102,7 +106,7 @@ namespace JITManager.IR
                             break;
                         case Mono.Cecil.Cil.Code.Ldloc_S:
                         case Mono.Cecil.Cil.Code.Ldloc:
-                            ReturnType = Type.GetType(ParentMethod.Body.Variables[((int)Instruction.Operand)].VariableType.FullName);
+                            ReturnType = Type.GetType(ParentMethod.Body.Variables[((Mono.Cecil.Cil.VariableReference)(Instruction.Operand)).Index].VariableType.FullName);
                             break;
 
                         //These return the same type as their source operands
@@ -236,14 +240,14 @@ namespace JITManager.IR
                         case Mono.Cecil.Cil.Code.Newobj:
                         case Mono.Cecil.Cil.Code.Castclass:
                             System.Diagnostics.Trace.Assert(true, "Figure out how to extract the class type");
-                            ReturnType = (Type)Instruction.Operand;
+                            ReturnType = ExtractClassType((Mono.Cecil.MemberReference)Instruction.Operand);
                             break;
                         case Mono.Cecil.Cil.Code.Box:
                             ReturnType = Childnodes[0].ReturnType;
                             break;
                         case Mono.Cecil.Cil.Code.Newarr:
                             System.Diagnostics.Trace.Assert(true, "Figure out how to extract the class type");
-                            ReturnType = (Type)Instruction.Operand;
+                            ReturnType = ExtractClassType((Mono.Cecil.MemberReference)Instruction.Operand);
                             break;
                         case Mono.Cecil.Cil.Code.Ldelem_Ref:
                             System.Diagnostics.Trace.Assert(true, "Figure out how to extract the class type");
@@ -254,6 +258,22 @@ namespace JITManager.IR
                     }
                     break;
             }
+        }
+
+        private Type ExtractClassType(Mono.Cecil.MemberReference operand)
+        {
+            Type type = null;
+            string typeName = operand.ToString();
+            
+            if (operand.DeclaringType != null)
+                typeName = operand.DeclaringType.FullName.Replace('/', '+');            
+            
+            type = Type.GetType(typeName);
+
+            if (type == null)
+                type = Type.GetType(typeName + ", " + operand.DeclaringType.Module.Assembly.Name.ToString(), true);
+
+            return type;
         }
     }
 }
