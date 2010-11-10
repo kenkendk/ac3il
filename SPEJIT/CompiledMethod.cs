@@ -28,9 +28,14 @@ namespace SPEJIT
         private List<KeyValuePair<int, Mono.Cecil.Cil.Instruction>> m_branches;
 
         /// <summary>
+        /// A list of all registered constant loads, key is the instruction offset, value is the constant
+        /// </summary>
+        private List<KeyValuePair<int, string>> m_constantLoads;
+
+        /// <summary>
         /// A list of calls, key is the call instruction offset, value is the invoked method
         /// </summary>
-        private List<KeyValuePair<int, Mono.Cecil.MethodDefinition>> m_calls;
+        private List<KeyValuePair<int, Mono.Cecil.MethodReference>> m_calls;
 
         /// <summary>
         /// A reference to the current accumulated list of instructions
@@ -60,8 +65,9 @@ namespace SPEJIT
             m_labels = new Dictionary<string, int>();
             m_instructionOffsets = new Dictionary<Mono.Cecil.Cil.Instruction, int>();
             m_branches = new List<KeyValuePair<int, Mono.Cecil.Cil.Instruction>>();
-            m_calls = new List<KeyValuePair<int, Mono.Cecil.MethodDefinition>>();
+            m_calls = new List<KeyValuePair<int, Mono.Cecil.MethodReference>>();
             m_instructionList = new List<SPEEmulator.OpCodes.Bases.Instruction>();
+            m_constantLoads = new List<KeyValuePair<int, string>>();
         }
 
         public int StackDepth 
@@ -86,9 +92,9 @@ namespace SPEJIT
             m_labels.Add(label, offset);
         }
 
-        public void RegisterCall(Mono.Cecil.MethodDefinition t)
+        public void RegisterCall(Mono.Cecil.MethodReference t)
         {
-            m_calls.Add(new KeyValuePair<int, Mono.Cecil.MethodDefinition>(m_instructionList.Count, t));
+            m_calls.Add(new KeyValuePair<int, Mono.Cecil.MethodReference>(m_instructionList.Count, t));
         }
 
         public void StartInstruction(Mono.Cecil.Cil.Instruction instr)
@@ -114,6 +120,37 @@ namespace SPEJIT
             PatchBranches();
         }
 
+        public void RegisterConstantLoad(string constant)
+        {
+            m_constantLoads.Add(new KeyValuePair<int, string>(m_instructionList.Count, constant));
+        }
+
+        public void RegisterConstantLoad(ulong high, ulong low)
+        {
+            RegisterConstantLoad(string.Format("{0:x16}{1:x16}", high, low));
+        }
+
+        public List<string> Constants 
+        { 
+            get 
+            {
+                List<string> v = new List<string>();
+                foreach (KeyValuePair<int, string> x in m_constantLoads)
+                    v.Add(x.Value);
+                return v;
+            } 
+        }
+
+        public void PatchConstants(int constantOffset, Dictionary<string, int> offsets)
+        {
+            foreach (KeyValuePair<int, string> ko in m_constantLoads)
+            {
+                if (m_instructionList[ko.Key] is SPEEmulator.OpCodes.lqr)
+                    ((SPEEmulator.OpCodes.lqr)m_instructionList[ko.Key]).I16 = ((uint)((constantOffset + (offsets[ko.Value] * 4)) - ko.Key)) & 0xffff;
+                else
+                    throw new Exception("Unexpected SPE instruction where a constant load should have been?");
+            }
+        }
 
         private void PatchBranches()
         {
@@ -128,9 +165,9 @@ namespace SPEJIT
             }
         }
 
-        public void PatchCalls(Dictionary<Mono.Cecil.MethodDefinition, int> methodOffsets, int callhandlerOffset)
+        public void PatchCalls(Dictionary<Mono.Cecil.MethodReference, int> methodOffsets, int callhandlerOffset)
         {
-            foreach (KeyValuePair<int, Mono.Cecil.MethodDefinition> call in m_calls)
+            foreach (KeyValuePair<int, Mono.Cecil.MethodReference> call in m_calls)
             {
                 int callOffset = methodOffsets.ContainsKey(call.Value) ? methodOffsets[call.Value] : callhandlerOffset;
                 int ownOffset = methodOffsets[this.Method.Method];

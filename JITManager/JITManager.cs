@@ -98,9 +98,35 @@ namespace JITManager
                 case Mono.Cecil.Cil.StackBehaviour.Varpop:
                     if (operand == null)
                         throw new Exception("This is an unexpected exception");
-                    return ((Mono.Cecil.MethodDefinition)(operand)).Parameters.Count;
+                    return ((Mono.Cecil.MethodReference)(operand)).Parameters.Count;
                 default:
                     throw new InvalidProgramException();
+            }
+        }
+
+        private static int NumberOfElementsPushed(Mono.Cecil.Cil.StackBehaviour s, object operand = null)
+        {
+            switch (s)
+            {
+                case Mono.Cecil.Cil.StackBehaviour.Push0:
+                    return 0;
+                case Mono.Cecil.Cil.StackBehaviour.Push1_push1:
+                    return 2;
+                case Mono.Cecil.Cil.StackBehaviour.Push1:
+                case Mono.Cecil.Cil.StackBehaviour.Pushi:
+                case Mono.Cecil.Cil.StackBehaviour.Pushi8:
+                case Mono.Cecil.Cil.StackBehaviour.Pushr4:
+                case Mono.Cecil.Cil.StackBehaviour.Pushr8:
+                case Mono.Cecil.Cil.StackBehaviour.Pushref:
+                    return 1;
+                case Mono.Cecil.Cil.StackBehaviour.Varpush:
+                    if (operand is Mono.Cecil.MethodReference)
+                        return ((Mono.Cecil.MethodReference)(operand)).ReturnType.ReturnType.FullName == "System.Void" ? 0 : 1;
+                    else
+                        throw new Exception("This is an unexpected exception");
+                default:
+                    throw new InvalidProgramException();
+
             }
         }
 
@@ -127,7 +153,9 @@ namespace JITManager
                     childnodes[i] = stack.Pop();
                 }
 
-                if (x.OpCode.StackBehaviourPush == Mono.Cecil.Cil.StackBehaviour.Push0)
+                int elementsPushed = NumberOfElementsPushed(x.OpCode.StackBehaviourPush, x.Operand);
+
+                if (elementsPushed == 0)
                 {
                     if (stack.Count != 0 && x.OpCode.FlowControl != Mono.Cecil.Cil.FlowControl.Next && x.OpCode.FlowControl != Mono.Cecil.Cil.FlowControl.Call)
                         throw new InvalidProgramException();

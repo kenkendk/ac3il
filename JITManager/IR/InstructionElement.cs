@@ -191,7 +191,7 @@ namespace JITManager.IR
                 case Mono.Cecil.Cil.StackBehaviour.Varpush:
                     //Instruction is supposed to bo a call type function
                     System.Diagnostics.Trace.Assert(Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Call || Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Calli || Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Callvirt);
-                    Mono.Cecil.MethodDefinition mdef = ((Mono.Cecil.MethodDefinition)Instruction.Operand);
+                    Mono.Cecil.MethodReference mdef = ((Mono.Cecil.MethodReference)Instruction.Operand);
                     switch (mdef.ReturnType.ReturnType.FullName)
                     {
                         case "System.Void":

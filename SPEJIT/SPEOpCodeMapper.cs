@@ -147,6 +147,73 @@ namespace SPEJIT
             PushStack(_TMP0);
         }
 
+        public void Ldc_I4_2(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 2));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4_3(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 3));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4_4(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 4));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4_5(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 5));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4_6(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 6));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4_7(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 7));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4_8(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 8));
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I4(InstructionElement el)
+        {
+            //TODO: Negative values can be loaded more efficiently, if they are < 0xffff
+            uint opr = (uint)(int)el.Instruction.Operand;
+            if (opr < 0x7fff)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)opr));
+            else if (opr < 0x40000)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.ila(_TMP0, (uint)opr));
+            else
+            {
+                ulong value = (ulong)((int) opr);
+                m_state.RegisterConstantLoad((value << 32) | (value & 0xffffffff), (value << 32) | (value & 0xffffffff));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_TMP0, 0));
+            }
+            PushStack(_TMP0);
+        }
+
+        public void Ldc_I8(InstructionElement el)
+        {
+            ulong opr = (ulong)(long)el.Instruction.Operand;
+            m_state.RegisterConstantLoad((ulong)opr, opr);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_TMP0, 0));
+            PushStack(_TMP0);
+        }
+
         public void Ldc_I4_S(InstructionElement el)
         {
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)(sbyte)el.Instruction.Operand));
@@ -226,6 +293,21 @@ namespace SPEJIT
             PopStack(_LV0 + 1u);
         }
 
+        public void Stloc_2(InstructionElement el)
+        {
+            PopStack(_LV0 + 2u);
+        }
+
+        public void Stloc_3(InstructionElement el)
+        {
+            PopStack(_LV0 + 3u);
+        }
+
+        public void Stloc_s(InstructionElement el)
+        {
+            PopStack(_LV0 + (uint)(int)el.Instruction.Operand);
+        }
+
         public void Ldloc_0(InstructionElement el)
         {
             PushStack(_LV0);
@@ -234,6 +316,21 @@ namespace SPEJIT
         public void Ldloc_1(InstructionElement el)
         {
             PushStack(_LV0 + 1u);
+        }
+
+        public void Ldloc_2(InstructionElement el)
+        {
+            PushStack(_LV0 + 2u);
+        }
+
+        public void Ldloc_3(InstructionElement el)
+        {
+            PushStack(_LV0 + 3u);
+        }
+
+        public void Ldloc_s(InstructionElement el)
+        {
+            PushStack(_LV0 + (uint)(int)el.Instruction.Operand);
         }
 
         public void Brtrue_S(InstructionElement el)
@@ -271,19 +368,21 @@ namespace SPEJIT
                 BinaryOp(new SPEEmulator.OpCodes.dfs(_TMP0, _TMP1, _TMP0));
             else if (t == typeof(long))
             {
-                //We have no sfd :(
-                //TODO: Figure out how to do this better
-                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
-                    new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 0x8), //First 4 instructions clear the lower dword
-                    new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP1, 0x8),
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP0, _TMP0, 0x8),
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 0x8),
+                //We have no subfw, so we make one ourselves
+
+                PopStack(_TMP1);
+                PopStack(_TMP0);
+
+                m_state.RegisterConstantLoad(0x04050607c0c0c0c0, 0x0c0d0e0fc0c0c0c0);
+
+                m_state.Instructions.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.lqr(_TMP3, 0), //Load substract mask
                     new SPEEmulator.OpCodes.bg(_TMP2, _TMP1, _TMP0), //Calculate borrow
-                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 0x8),
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP2, _TMP2, 0x8),
-                    new SPEEmulator.OpCodes.sf(_TMP0, _TMP1, _TMP0), //Substract the two words
-                    new SPEEmulator.OpCodes.sf(_TMP0, _TMP2, _TMP0), //Substract the carry
+                    new SPEEmulator.OpCodes.shufb(_TMP2, _TMP2, _TMP2, _TMP3), //Move the carry into the right place
+                    new SPEEmulator.OpCodes.sfx(_TMP2, _TMP1, _TMP0), //Subtract the two dwords
                 });
+
+                PushStack(_TMP2);
             }
         }
 
@@ -292,7 +391,16 @@ namespace SPEJIT
             Type t = ValidateBinaryOp(el);
 
             if (t == typeof(int))
-                BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
+            {
+                //Unfortunately, the SPU favors 16bit integer multiply, so this block emulates 32bit multiply
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.mpyh(_TMP3, _TMP1, _TMP0),
+                    new SPEEmulator.OpCodes.mpyh(_TMP2, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.mpyu(_TMP1, _TMP1, _TMP0),
+                    new SPEEmulator.OpCodes.a(_TMP0, _TMP3, _TMP2),
+                    new SPEEmulator.OpCodes.a(_TMP0, _TMP0, _TMP1)
+                });
+            }
             else if (t == typeof(float))
                 BinaryOp(new SPEEmulator.OpCodes.fm(_TMP0, _TMP1, _TMP0));
             else if (t == typeof(double))
@@ -316,25 +424,28 @@ namespace SPEJIT
                 BinaryOp(new SPEEmulator.OpCodes.dfa(_TMP0, _TMP1, _TMP0));
             else if (t == typeof(long))
             {
-                //We have no adw :(
-                //TODO: Figure out how to do this better
-                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
-                    new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 0x8), //First 4 instructions clear the lower dword
-                    new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP1, 0x8),
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP0, _TMP0, 0x8),
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 0x8),
+                //We have no addw, so we make one ourselves
+
+                PopStack(_TMP1);
+                PopStack(_TMP0);
+
+                m_state.RegisterConstantLoad(0x0405060780808080, 0x0c0d0e0f80808080);
+
+                m_state.Instructions.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.lqr(_TMP3, 0), //Load add mask
                     new SPEEmulator.OpCodes.cg(_TMP2, _TMP0, _TMP1), //Calculate carry
-                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 0x8),
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP2, _TMP2, 0x8),
-                    new SPEEmulator.OpCodes.a(_TMP0, _TMP1, _TMP0), //Add the two words
-                    new SPEEmulator.OpCodes.a(_TMP0, _TMP0, _TMP2), //Add the carry
+                    new SPEEmulator.OpCodes.shufb(_TMP2, _TMP2, _TMP2, _TMP3), //Rotate the carry to the far right
+                    new SPEEmulator.OpCodes.shlqbyi(_TMP2, _TMP2, 0x0c), //Shift left to move the carry into prefered slot
+                    new SPEEmulator.OpCodes.addx(_TMP2, _TMP0, _TMP1), //Add the two words
                 });
+
+                PushStack(_TMP2);
             }
         }
 
         public void Call(InstructionElement el)
         {
-            Mono.Cecil.MethodDefinition mdef = (Mono.Cecil.MethodDefinition)el.Instruction.Operand;
+            Mono.Cecil.MethodReference mdef = (Mono.Cecil.MethodReference)el.Instruction.Operand;
 
             if (mdef.Parameters.Count > MAX_FUCTION_ARGUMENTS)
                 throw new Exception("Too many arguments ");

@@ -9,10 +9,11 @@ namespace CILFac
     {
         public static void SPE_Main()
         {
-            long x = Factorial(10);
+            int x = Factorial(10);
+            Console.WriteLine(x);
         }
 
-        public static long Factorial(long number)
+        public static int Factorial(int number)
         {
             if (number == 0)
                 return 1;

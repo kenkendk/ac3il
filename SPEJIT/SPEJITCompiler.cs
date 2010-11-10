@@ -148,12 +148,20 @@ namespace SPEJIT
             int callhandlerOffset = output.Count;
             output.AddRange(CALL_HANDLER);
 
+            //Gather all required constants
+            Dictionary<string, int> constants = new Dictionary<string, int>();
+            int constantIndex = 0;
+            foreach (CompiledMethod cm in methods)
+                foreach (string v in cm.Constants)
+                    if (!constants.ContainsKey(v))
+                        constants.Add(v, constantIndex++);
+
             //Patch the entry point adress
             int entryfunctionOffset = output.Count;
             ((SPEEmulator.OpCodes.brsl)output[callhandlerOffset - 2]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + 2);
 
             //Before we emit the actual code, we need to patch all calls
-            Dictionary<Mono.Cecil.MethodDefinition, int> methodOffsets = new Dictionary<Mono.Cecil.MethodDefinition, int>();
+            Dictionary<Mono.Cecil.MethodReference, int> methodOffsets = new Dictionary<Mono.Cecil.MethodReference, int>();
 
             int offset = output.Count;
             foreach (CompiledMethod cm in methods)
@@ -170,9 +178,39 @@ namespace SPEJIT
             foreach (CompiledMethod cm in methods)
                 output.AddRange(cm.Instructions);
 
+            //Pad with nops to be 16 byte aligned
+            while (output.Count % 4 != 0)
+                output.Add(new SPEEmulator.OpCodes.nop());
+
+            //Now we know the size of the code area, so we can layout the constants
+            if (constants.Count > 0)
+            {
+                int constantOffset = output.Count;
+
+                foreach (CompiledMethod cm in methods)
+                    cm.PatchConstants(constantOffset - methodOffsets[cm.Method.Method], constants);
+            }
+
+
             //All instructions are JIT'ed, so flush them as binary output
             foreach (SPEEmulator.OpCodes.Bases.Instruction i in output)
                 outstream.Write(ReverseEndian(BitConverter.GetBytes(i.Value)), 0, 4);
+
+            if (constants.Count > 0)
+            {
+                SortedList<int, string> tmp = new SortedList<int,string>();
+                foreach (KeyValuePair<string, int> c in constants)
+                    tmp.Add(c.Value, c.Key);
+
+                foreach (string s in tmp.Values)
+                {
+                    ulong high = ulong.Parse(s.Substring(0, 16), System.Globalization.NumberStyles.HexNumber);
+                    ulong low = ulong.Parse(s.Substring(16), System.Globalization.NumberStyles.HexNumber);
+
+                    outstream.Write(ReverseEndian(BitConverter.GetBytes(high)), 0, 8);
+                    outstream.Write(ReverseEndian(BitConverter.GetBytes(low)), 0, 8);
+                }
+            }
 
             //If there is an assemblyStream present, write text representation
             if (assemblyOutput != null)
@@ -181,7 +219,11 @@ namespace SPEJIT
                 foreach (SPEEmulator.OpCodes.Bases.Instruction i in output)
                 {
                     if (methodOffsets.ContainsValue(offset))
-                        assemblyOutput.WriteLine("# Function entry");
+                    {
+                        foreach (KeyValuePair<Mono.Cecil.MethodReference, int> p in methodOffsets)
+                            if (p.Value == offset)
+                                assemblyOutput.WriteLine("# Function entry: " + p.Key.Name);
+                    }
                     assemblyOutput.WriteLine(i.ToString());
                     offset++;
                 }
@@ -320,6 +362,9 @@ namespace SPEJIT
 
             }
 
+            //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
+            state.EndFunction();
+
             //If the function returns a value, place it in $3
             if (state.Method.Method.ReturnType.ReturnType.FullName != "System.Void")
                 mapper.PopStack(_ARG0);
@@ -330,8 +375,6 @@ namespace SPEJIT
 
             System.Diagnostics.Trace.Assert(state.StackDepth == 0);
 
-            //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
-            state.EndFunction();
 
             //We are done, so add the method epilogue
             state.Instructions.AddRange(METHOD_EPILOGUE);
