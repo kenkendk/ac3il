@@ -135,6 +135,40 @@ namespace SPEJIT
             PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + 1));
         }
 
+        public void Ldarg_2(InstructionElement el)
+        {
+            PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + 2));
+        }
+
+        public void Ldarg_3(InstructionElement el)
+        {
+            PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + 3));
+        }
+
+        public void Ldarg_s(InstructionElement el)
+        {
+            int index = el.ParentMethod.Parameters.IndexOf(((Mono.Cecil.ParameterDefinition)el.Instruction.Operand));
+            PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + index));
+        }
+
+        public void Ldarg(InstructionElement el)
+        {
+            int index = el.ParentMethod.Parameters.IndexOf(((Mono.Cecil.ParameterDefinition)el.Instruction.Operand));
+            PushStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + index));
+        }
+
+        public void Starg_s(InstructionElement el)
+        {
+            int index = el.ParentMethod.Parameters.IndexOf(((Mono.Cecil.ParameterDefinition)el.Instruction.Operand));
+            PopStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + index));
+        }
+
+        public void Starg(InstructionElement el)
+        {
+            int index = el.ParentMethod.Parameters.IndexOf(((Mono.Cecil.ParameterDefinition)el.Instruction.Operand));
+            PopStack((uint)(_LV0 + m_state.Method.Method.Body.Variables.Count + index));
+        }
+
         public void Ldc_I4_0(InstructionElement el)
         {
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, 0));
@@ -189,6 +223,12 @@ namespace SPEJIT
             PushStack(_TMP0);
         }
 
+        public void Ldc_i4_m1(InstructionElement el)
+        {
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0,  0xffff));
+            PushStack(_TMP0);
+        }
+
         public void Ldc_I4(InstructionElement el)
         {
             //TODO: Negative values can be loaded more efficiently, if they are < 0xffff
@@ -216,34 +256,367 @@ namespace SPEJIT
 
         public void Ldc_I4_S(InstructionElement el)
         {
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)(sbyte)el.Instruction.Operand));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_TMP0, ((uint)(sbyte)el.Instruction.Operand) & 0xffff));
             PushStack(_TMP0);
         }
 
+        public void Conv_R4(InstructionElement el)
+        {
+            if (el.Childnodes == null || el.Childnodes.Length != 1)
+                throw new InvalidProgramException();
+            if (el.Childnodes[0].StorageClass == typeof(float))
+                return;
+            else if (el.Childnodes[0].StorageClass == typeof(int))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.csflt(_TMP0, _TMP0, 0));
+                PushStack(_TMP0);
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(long))
+            {
+                throw new MissingMethodException();
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(double))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.frds(_TMP0, _TMP0));
+                PushStack(_TMP0);
+            }
+            else
+                throw new InvalidProgramException();
+        }
+
+
+        public void Conv_R8(InstructionElement el)
+        {
+            if (el.Childnodes == null || el.Childnodes.Length != 1)
+                throw new InvalidProgramException();
+            if (el.Childnodes[0].StorageClass == typeof(double))
+                return;
+            else if (el.Childnodes[0].StorageClass == typeof(int))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.csflt(_TMP0, _TMP0, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.fesd(_TMP0, _TMP0));
+                PushStack(_TMP0);
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(long))
+            {
+                throw new MissingMethodException();
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(float))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.fesd(_TMP0, _TMP0));
+                PushStack(_TMP0);
+            }
+            else
+                throw new InvalidProgramException();
+        }
+
+
         public void Conv_I8(InstructionElement el)
         {
-            PopStack(_TMP0);
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.xswd(_TMP0, _TMP0));
-            PushStack(_TMP0);
+            if (el.Childnodes == null || el.Childnodes.Length != 1)
+                throw new InvalidProgramException();
+            if (el.Childnodes[0].StorageClass == typeof(long))
+                return;
+            else if (el.Childnodes[0].StorageClass == typeof(int))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.xswd(_TMP0, _TMP0));
+                PushStack(_TMP0);
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(float))
+            {
+                throw new MissingMethodException();
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(double))
+            {
+                throw new MissingMethodException();
+            }
+            else
+                throw new InvalidProgramException();
+        }
+
+        public void Conv_I4(InstructionElement el)
+        {
+            if (el.Childnodes == null || el.Childnodes.Length != 1)
+                throw new InvalidProgramException();
+            if (el.Childnodes[0].StorageClass == typeof(int))
+                return;
+            else if (el.Childnodes[0].StorageClass == typeof(long))
+            {
+                PopStack(_TMP0);
+                m_state.RegisterConstantLoad(0x0405060704050607, 0x0405060704050607); //This mask loads the lower word from the prefered doubleword slot
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_TMP1, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(_TMP0, _TMP0, _TMP0, _TMP1));
+                PushStack(_TMP0);
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(float))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.cflts(_TMP0, _TMP0, 0));
+                PushStack(_TMP0);
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(float))
+            {
+                PopStack(_TMP0);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.frds(_TMP0, _TMP0)); //Convert to float
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.cflts(_TMP0, _TMP0, 0)); //Convert to int
+                PushStack(_TMP0);
+            }
+        }
+
+        public void Conv_U4(InstructionElement el)
+        {
+            Conv_I4(el);
+        }
+
+        public void Conv_U8(InstructionElement el)
+        {
+            if (el.Childnodes == null || el.Childnodes.Length != 1)
+                throw new InvalidProgramException();
+            if (el.Childnodes[0].StorageClass == typeof(long))
+                return;
+            else if (el.Childnodes[0].StorageClass == typeof(int))
+            {
+                PopStack(_TMP0);
+                //According to ECMA specs i4 -> u8 is always zero extended: http://jilc.sourceforge.net/ecma_p3_cil.shtml#Table7ConversionOperations
+                m_state.RegisterConstantLoad(0x8080808000010203, 0x8080808000010203);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_TMP1, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(_TMP0, _TMP0, _TMP0, _TMP1));
+                PushStack(_TMP0);
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(float))
+            {
+                throw new MissingMethodException();
+            }
+            else if (el.Childnodes[0].StorageClass == typeof(double))
+            {
+                throw new MissingMethodException();
+            }
+            else
+                throw new InvalidProgramException();
         }
 
         private Type ValidateBinaryOp(InstructionElement el)
         {
             if (el.Childnodes == null || el.Childnodes.Length != 2)
                 throw new InvalidProgramException();
-            if (el.Childnodes[0].ReturnType != el.Childnodes[1].ReturnType)
+            if (el.Childnodes[0].StorageClass != el.Childnodes[1].StorageClass)
                 throw new InvalidProgramException("TODO: Type cohersion?");
 
-            if (el.Childnodes[0].ReturnType == typeof(int))
+            if (el.Childnodes[0].StorageClass == typeof(int))
                 return typeof(int);
-            else if (el.Childnodes[0].ReturnType == typeof(long))
+            else if (el.Childnodes[0].StorageClass == typeof(long))
                 return typeof(long);
-            else if (el.Childnodes[0].ReturnType == typeof(float))
+            else if (el.Childnodes[0].StorageClass == typeof(float))
                 return typeof(float);
-            else if (el.Childnodes[0].ReturnType == typeof(double))
+            else if (el.Childnodes[0].StorageClass == typeof(double))
                 return typeof(double);
             else
-                throw new InvalidProgramException("Binary Op for <" + el.Childnodes[0].ReturnType + "> ?");
+                throw new InvalidProgramException("Binary Op for <" + el.Childnodes[0].StorageClass + "> ?");
+        }
+
+        public void Not(InstructionElement el)
+        {
+            PopStack(_TMP0);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff));
+            PushStack(_TMP0);
+        }
+
+        public void Clt(InstructionElement el)
+        {
+            Type t = ValidateBinaryOp(el);
+
+            //There are no clt instructions, so we use "not (cgt or ceq)"
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.cgt(_TMP0, _TMP0, _TMP1), //Greater than
+                    new SPEEmulator.OpCodes.ceq(_TMP1, _TMP0, _TMP1), //Equal
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP1), //Greater than _or_ equal
+                    new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff), //Invert bitmask (not)
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else if (t == typeof(float))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.fcgt(_TMP0, _TMP0, _TMP1), //Greater than
+                    new SPEEmulator.OpCodes.fceq(_TMP1, _TMP0, _TMP1), //Equal
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP1), //Greater than _or_ equal
+                    new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff), //Invert bitmask (not)
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else if (t == typeof(long))
+            {
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    //Part1: cgt
+                    new SPEEmulator.OpCodes.ceq(_TMP3, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for equal than and 0 otherwise
+                    new SPEEmulator.OpCodes.clgt(_TMP2, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for logically greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 4), //Prepare the tmp3 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP3, _TMP2, _TMP3), //And the results so we disregard the lower word unless the upper words are equal
+                    new SPEEmulator.OpCodes.cgt(_TMP2, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.or(_TMP2, _TMP2, _TMP3), //Or the results so prefered word slot is either 0 or 0xffffffff
+
+                    //Part2: ceq
+                    new SPEEmulator.OpCodes.ceq(_TMP1, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP3, _TMP1, 4), //Prepare the tmp1 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP1, _TMP1, _TMP3), //And the results so prefered word slot is either 0 or 0xffffffff
+
+                    //Combine
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP2, _TMP1), //Greater than _or_ equal
+                    new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff), //Invert bitmask (not)
+
+                    //Mask
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            }
+            else if (t == typeof(double))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.dfcgt(_TMP0, _TMP0, _TMP1), //Greater than
+                    new SPEEmulator.OpCodes.dfceq(_TMP1, _TMP0, _TMP1), //Equal
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP1), //Greater than _or_ equal
+                    new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff), //Invert bitmask (not)
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else
+                throw new InvalidProgramException("clt for <" + el.Childnodes[0].StorageClass + "> ?");
+        }
+
+        public void Clt_un(InstructionElement el)
+        {
+            Type t = ValidateBinaryOp(el);
+
+            //There are no clt_un instructions, so we use "not (clgt or ceq)"
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.clgt(_TMP0, _TMP0, _TMP1), //Greater than
+                    new SPEEmulator.OpCodes.ceq(_TMP1, _TMP0, _TMP1), //Equal
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP1), //Greater than _or_ equal
+                    new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff), //Invert bitmask (not)
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else if (t == typeof(float))
+                throw new MissingMethodException("Floating unordered?");
+            else if (t == typeof(long))
+            {
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    //Part1: cgt
+                    new SPEEmulator.OpCodes.ceq(_TMP3, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for equal than and 0 otherwise
+                    new SPEEmulator.OpCodes.clgt(_TMP2, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for logically greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 4), //Prepare the tmp3 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP3, _TMP2, _TMP3), //And the results so we disregard the lower word unless the upper words are equal
+                    new SPEEmulator.OpCodes.clgt(_TMP2, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.or(_TMP2, _TMP2, _TMP3), //Or the results so prefered word slot is either 0 or 0xffffffff
+
+                    //Part2: ceq
+                    new SPEEmulator.OpCodes.ceq(_TMP1, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP3, _TMP1, 4), //Prepare the tmp1 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP1, _TMP1, _TMP3), //And the results so prefered word slot is either 0 or 0xffffffff
+
+                    //Combine
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP2, _TMP1), //Greater than _or_ equal
+                    new SPEEmulator.OpCodes.xori(_TMP0, _TMP0, 0x3ff), //Invert bitmask (not)
+
+                    //Mask
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            }
+            else if (t == typeof(double))
+                throw new MissingMethodException("Double floating unordered?");
+            else
+                throw new InvalidProgramException("clt for <" + el.Childnodes[0].StorageClass + "> ?");
+        }
+
+
+        public void Cgt(InstructionElement el)
+        {
+            Type t = ValidateBinaryOp(el);
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.cgt(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else if (t == typeof(float))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.fcgt(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else if (t == typeof(long))
+            {
+                //There is no cgtd, so we make our own
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.ceq(_TMP3, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for equal than and 0 otherwise
+                    new SPEEmulator.OpCodes.clgt(_TMP2, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for logically greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 4), //Prepare the tmp3 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP3, _TMP2, _TMP3), //And the results so we disregard the lower word unless the upper words are equal
+                    new SPEEmulator.OpCodes.cgt(_TMP0, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP3), //Or the results so prefered word slot is either 0 or 0xffffffff
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            }
+            else if (t == typeof(double))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.dfcgt(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else
+                throw new InvalidProgramException("cgt for <" + el.Childnodes[0].StorageClass + "> ?");
+        }
+
+        public void Cgt_un(InstructionElement el)
+        {
+            Type t = ValidateBinaryOp(el);
+
+            if (t == typeof(int))
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.clgt(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            else if (t == typeof(float))
+                throw new MissingMethodException("Floating unordered?");
+                /*BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.fcgt(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });*/
+            else if (t == typeof(long))
+            {
+                //There is no cgtd, so we make our own
+                BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.ceq(_TMP3, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for equal than and 0 otherwise
+                    new SPEEmulator.OpCodes.clgt(_TMP2, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for logically greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.rotqbyi(_TMP2, _TMP2, 4), //Prepare the tmp3 by an 8 byte rotate
+                    new SPEEmulator.OpCodes.and(_TMP3, _TMP2, _TMP3), //And the results so we disregard the lower word unless the upper words are equal
+                    new SPEEmulator.OpCodes.clgt(_TMP0, _TMP0, _TMP1), //This will compare words, giving 0xffffffff for greater than and 0 otherwise
+                    new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP3), //Or the results so prefered word slot is either 0 or 0xffffffff
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });
+            }
+            else if (t == typeof(double))
+                throw new MissingMethodException("Double floating unordered?");
+                /*BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.dfcgt(_TMP0, _TMP0, _TMP1),
+                    new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
+                });*/
+            else
+                throw new InvalidProgramException("cgt_un for <" + el.Childnodes[0].StorageClass + "> ?");
         }
 
         public void Ceq(InstructionElement el)
@@ -254,13 +627,13 @@ namespace SPEJIT
                 BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.ceq(_TMP0, _TMP0, _TMP1),
                     new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
-                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
                 });
             else if (t == typeof(float))
                 BinaryOp(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.fceq(_TMP0, _TMP0, _TMP1),
                     new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
-                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
                 });
             else if (t == typeof(long))
             {
@@ -270,7 +643,7 @@ namespace SPEJIT
                     new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP0, 4), //Prepare the tmp1 by an 8 byte rotate
                     new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Or the results so prefered word slot is either 0 or 0xffffffff
                     new SPEEmulator.OpCodes.il(_TMP1, 0x1), //Load a 0 or 1 mask
-                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
+                    new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 (false) or 1 (true)
                 });
             }
             else if (t == typeof(double))
@@ -280,7 +653,7 @@ namespace SPEJIT
                     new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Make sure that the result is a word of either 0 or 1
                 });
             else
-                throw new InvalidProgramException("ceq for <" + el.Childnodes[0].ReturnType + "> ?");
+                throw new InvalidProgramException("ceq for <" + el.Childnodes[0].StorageClass + "> ?");
         }
 
         public void Stloc_0(InstructionElement el)
@@ -305,7 +678,7 @@ namespace SPEJIT
 
         public void Stloc_s(InstructionElement el)
         {
-            PopStack(_LV0 + (uint)(int)el.Instruction.Operand);
+            PopStack(_LV0 + (uint)((Mono.Cecil.Cil.VariableReference)el.Instruction.Operand).Index);
         }
 
         public void Ldloc_0(InstructionElement el)
@@ -330,7 +703,7 @@ namespace SPEJIT
 
         public void Ldloc_s(InstructionElement el)
         {
-            PushStack(_LV0 + (uint)(int)el.Instruction.Operand);
+            PushStack(_LV0 + (uint)((Mono.Cecil.Cil.VariableReference)el.Instruction.Operand).Index);
         }
 
         public void Brtrue_S(InstructionElement el)
@@ -368,7 +741,7 @@ namespace SPEJIT
                 BinaryOp(new SPEEmulator.OpCodes.dfs(_TMP0, _TMP1, _TMP0));
             else if (t == typeof(long))
             {
-                //We have no subfw, so we make one ourselves
+                //We have no subfd, so we make one ourselves
 
                 PopStack(_TMP1);
                 PopStack(_TMP0);
@@ -378,12 +751,14 @@ namespace SPEJIT
                 m_state.Instructions.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.lqr(_TMP3, 0), //Load substract mask
                     new SPEEmulator.OpCodes.bg(_TMP2, _TMP1, _TMP0), //Calculate borrow
-                    new SPEEmulator.OpCodes.shufb(_TMP2, _TMP2, _TMP2, _TMP3), //Move the carry into the right place
+                    new SPEEmulator.OpCodes.shufb(_TMP2, _TMP2, _TMP2, _TMP3), //Move the borrow into the right place
                     new SPEEmulator.OpCodes.sfx(_TMP2, _TMP1, _TMP0), //Subtract the two dwords
                 });
 
                 PushStack(_TMP2);
             }
+            else
+                throw new InvalidProgramException();
         }
 
         public void Mul(InstructionElement el)
@@ -410,6 +785,116 @@ namespace SPEJIT
                 //We have no mpyd :(
                 BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
             }
+            else
+                throw new InvalidProgramException();
+        }
+
+        public void And(InstructionElement el)
+        {
+            BinaryOp(new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1));
+        }
+
+        public void Or(InstructionElement el)
+        {
+            BinaryOp(new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP1));
+        }
+
+        public void Shl(InstructionElement el)
+        {
+            if (el.Childnodes == null || el.Childnodes.Length != 2)
+                throw new InvalidProgramException();
+
+            Type t = el.Childnodes[0].StorageClass;
+            Type bitCounter = el.Childnodes[1].StorageClass;
+
+            PopStack(_TMP1);
+            PopStack(_TMP0);
+
+            if (bitCounter == typeof(long))
+            {
+                //We discard the high word, and rotate the low word into the preferred slot
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP1, 4));
+            }
+            else if (bitCounter != typeof(int))
+                throw new InvalidProgramException("Cannot shl with type " + el.Childnodes[1].ReturnType.ToString());
+
+            if (t == typeof(int))
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shl(_TMP0, _TMP0, _TMP1));
+            }
+            else if (t == typeof(long))
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbi(_TMP0, _TMP0, _TMP1));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotmi(_TMP1, _TMP1, ((-3) & 0x7F)));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqby(_TMP0, _TMP0, _TMP1));
+            }
+            else
+                throw new InvalidProgramException();
+
+            PushStack(_TMP0);
+        }
+
+        public void Shr(InstructionElement el)
+        {
+            Shr_common(el);
+        }
+
+        public void Shr_un(InstructionElement el)
+        {
+            Shr_common(el);
+        }
+
+        public void Shr_common(InstructionElement el)
+        {
+            PopStack(_TMP1);
+            PopStack(_TMP0);
+
+            if (el.Childnodes == null || el.Childnodes.Length != 2)
+                throw new InvalidProgramException();
+
+            Type t = el.Childnodes[0].StorageClass;
+            Type bitCounter = el.Childnodes[1].StorageClass;
+
+            if (bitCounter == typeof(long))
+            {
+                //We discard the high word, and rotate the low word into the preferred slot
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_TMP1, _TMP1, 4));
+            }
+            else if (bitCounter != typeof(int))
+                throw new InvalidProgramException("Cannot shr_un with type " + el.Childnodes[1].ReturnType.ToString());
+
+
+            if (t == typeof(int))
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_TMP1, _TMP1, 0)); //Form 2's complement mask
+                if (el.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Shr_Un)
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.rotm(_TMP0, _TMP0, _TMP1));
+                else
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.rotma(_TMP0, _TMP0, _TMP1));
+            }
+            else if (t == typeof(long))
+            {
+                m_state.Instructions.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] {
+                    new SPEEmulator.OpCodes.ori(_TMP2, _TMP1, 0),
+                    new SPEEmulator.OpCodes.rotmi(_TMP1, _TMP1, (uint)((-3) & 0x7f)),
+                    new SPEEmulator.OpCodes.sfi(_TMP1, _TMP1, 0), //Form 2's complement mask for byte count
+                    new SPEEmulator.OpCodes.sfi(_TMP2, _TMP2, 0), //Form 2's complement mask for bit count
+                });
+
+                if (el.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Shr_Un)
+                {
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqmby(_TMP0, _TMP0, _TMP1));
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqmbi(_TMP0, _TMP0, _TMP2));
+                }
+                else
+                {
+                    throw new MissingMethodException("64bit signed shr is not supported");
+                }
+            }
+            else
+                throw new InvalidProgramException();
+
+            PushStack(_TMP0);
         }
 
         public void Add(InstructionElement el)
@@ -424,7 +909,7 @@ namespace SPEJIT
                 BinaryOp(new SPEEmulator.OpCodes.dfa(_TMP0, _TMP1, _TMP0));
             else if (t == typeof(long))
             {
-                //We have no addw, so we make one ourselves
+                //We have no addd, so we make one ourselves
 
                 PopStack(_TMP1);
                 PopStack(_TMP0);
@@ -435,12 +920,13 @@ namespace SPEJIT
                     new SPEEmulator.OpCodes.lqr(_TMP3, 0), //Load add mask
                     new SPEEmulator.OpCodes.cg(_TMP2, _TMP0, _TMP1), //Calculate carry
                     new SPEEmulator.OpCodes.shufb(_TMP2, _TMP2, _TMP2, _TMP3), //Rotate the carry to the far right
-                    new SPEEmulator.OpCodes.shlqbyi(_TMP2, _TMP2, 0x0c), //Shift left to move the carry into prefered slot
                     new SPEEmulator.OpCodes.addx(_TMP2, _TMP0, _TMP1), //Add the two words
                 });
 
                 PushStack(_TMP2);
             }
+            else
+                throw new InvalidProgramException();
         }
 
         public void Call(InstructionElement el)

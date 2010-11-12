@@ -60,6 +60,27 @@ namespace JITManager.IR
         public Type ReturnType;
         public bool IsReturnTypeRef;
 
+        public Type StorageClass
+        {
+            get
+            {
+                if (ReturnType == null)
+                    return null;
+                else if (IsReturnTypeRef)
+                    return typeof(IntPtr);
+                else if (ReturnType == typeof(bool) || ReturnType == typeof(int) || ReturnType == typeof(uint) || ReturnType == typeof(byte) || ReturnType == typeof(sbyte) || ReturnType == typeof(short) || ReturnType == typeof(ushort))
+                    return typeof(int);
+                else if (ReturnType == typeof(float))
+                    return typeof(float);
+                else if (ReturnType == typeof(double))
+                    return typeof(double);
+                else if (ReturnType == typeof(long) || ReturnType == typeof(ulong))
+                    return typeof(long);
+                else
+                    throw new Exception("Unexpected value for storage: " + ReturnType.FullName);
+
+            }
+        }
 
         private void AssignReturnType()
         {

@@ -57,6 +57,11 @@ namespace SPEJIT
         /// </summary>
         private MethodEntry m_method;
 
+        /// <summary>
+        /// The number of instructions before the return code
+        /// </summary>
+        private int m_returnOffset;
+
         public MethodEntry Method { get { return m_method; } }
 
         internal CompiledMethod(MethodEntry method)
@@ -117,8 +122,11 @@ namespace SPEJIT
 
         public void EndFunction()
         {
-            PatchBranches();
+            m_returnOffset = m_instructionList.Count;
         }
+
+        public List<SPEEmulator.OpCodes.Bases.Instruction> Prolouge;
+        public List<SPEEmulator.OpCodes.Bases.Instruction> Epilouge;
 
         public void RegisterConstantLoad(string constant)
         {
@@ -152,11 +160,11 @@ namespace SPEJIT
             }
         }
 
-        private void PatchBranches()
+        public void PatchBranches()
         {
             foreach (KeyValuePair<int, Mono.Cecil.Cil.Instruction> branch in m_branches)
             {
-                int targetInstruction = branch.Value == null ? m_instructionList.Count : m_instructionOffsets[branch.Value];
+                int targetInstruction = branch.Value == null ? m_returnOffset : m_instructionOffsets[branch.Value];
 
                 if (m_instructionList[branch.Key] is SPEEmulator.OpCodes.Bases.RI16)
                     ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[branch.Key]).I16 = ((uint)(targetInstruction - branch.Key)) & 0xffff;
@@ -170,7 +178,7 @@ namespace SPEJIT
             foreach (KeyValuePair<int, Mono.Cecil.MethodReference> call in m_calls)
             {
                 int callOffset = methodOffsets.ContainsKey(call.Value) ? methodOffsets[call.Value] : callhandlerOffset;
-                int ownOffset = methodOffsets[this.Method.Method];
+                int ownOffset = methodOffsets[this.Method.Method] + Prolouge.Count;
 
                 if (m_instructionList[call.Key] is SPEEmulator.OpCodes.Bases.RI16)
                     ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[call.Key]).I16 = (uint)((callOffset - (ownOffset + call.Key)) & 0xffff);

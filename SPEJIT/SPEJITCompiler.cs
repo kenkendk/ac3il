@@ -76,28 +76,6 @@ namespace SPEJIT
         }
 
         /// <summary>
-        /// An ABI compliant SPE method prologue, note that instructions [1] and [2] must be patched with the used stack size
-        /// </summary>
-        private static readonly SPEEmulator.OpCodes.Bases.Instruction[] METHOD_PROLOGUE = new SPEEmulator.OpCodes.Bases.Instruction[] 
-        {
-            new SPEEmulator.OpCodes.stqd(_LR, _SP, 1),
-            new SPEEmulator.OpCodes.stqd(_SP, _SP, 0), //0 is placeholder for negative stackframe size
-            new SPEEmulator.OpCodes.ai(_SP, _SP, 0)  //0 is placeholder for negative stackframe size
-        };
-
-
-        /// <summary>
-        /// An ABI compliant SPE method epilogue, note that instruction [0] must be patched with the used stack size
-        /// </summary>
-        private static readonly SPEEmulator.OpCodes.Bases.Instruction[] METHOD_EPILOGUE = new SPEEmulator.OpCodes.Bases.Instruction[] 
-        {
-            new SPEEmulator.OpCodes.ai(_SP, _SP, 0), //0 is placeholder for stackframe size
-            new SPEEmulator.OpCodes.lqd(_LR, _SP, 1),
-            new SPEEmulator.OpCodes.bi(_LR, _LR)
-
-        };
-
-        /// <summary>
         /// Produces an ELF compatible binary output stream with the compiled methods
         /// </summary>
         /// <param name="outstream">The output stream</param>
@@ -167,16 +145,25 @@ namespace SPEJIT
             foreach (CompiledMethod cm in methods)
             {
                 methodOffsets.Add(cm.Method.Method, offset);
-                offset += cm.Instructions.Count;
+                cm.Prolouge = GenerateProlouge(cm);
+                cm.Epilouge = GenerateEpilouge(cm);
+                offset += cm.Instructions.Count + cm.Prolouge.Count + cm.Epilouge.Count;
             }
 
             //Now that we know the layout of each method, we can patch the call instructions
             foreach (CompiledMethod cm in methods)
+            {
+                cm.PatchBranches();
                 cm.PatchCalls(methodOffsets, callhandlerOffset);
+            }
 
             //Now gather all instructions
             foreach (CompiledMethod cm in methods)
+            {
+                output.AddRange(cm.Prolouge);
                 output.AddRange(cm.Instructions);
+                output.AddRange(cm.Epilouge);
+            }
 
             //Pad with nops to be 16 byte aligned
             while (output.Count % 4 != 0)
@@ -188,7 +175,7 @@ namespace SPEJIT
                 int constantOffset = output.Count;
 
                 foreach (CompiledMethod cm in methods)
-                    cm.PatchConstants(constantOffset - methodOffsets[cm.Method.Method], constants);
+                    cm.PatchConstants(constantOffset - methodOffsets[cm.Method.Method] - cm.Prolouge.Count, constants);
             }
 
 
@@ -327,9 +314,6 @@ namespace SPEJIT
 
             state.StartFunction();
 
-            //First thing we need is the prologue, which preserves the caller stack
-            state.Instructions.AddRange(METHOD_PROLOGUE);
-
             //We store the local variables in the permanent registers followed by the function arguments
             int locals = method.Method.Body.Variables.Count;
             int args = method.Method.Parameters.Count;
@@ -362,7 +346,6 @@ namespace SPEJIT
 
             }
 
-            //We can now patch all branches, we cannot patch the calls until the microkernel address is emitted
             state.EndFunction();
 
             //If the function returns a value, place it in $3
@@ -371,23 +354,71 @@ namespace SPEJIT
 
             //If we had to store locals, we must restore the local variable registers
             for (int i = 0; i < permRegs; i++)
-                mapper.PopStack((uint)(_LV0 + locals - i - 1));
+                mapper.PopStack((uint)(_LV0 + (permRegs - i - 1)));
 
             System.Diagnostics.Trace.Assert(state.StackDepth == 0);
-
-
-            //We are done, so add the method epilogue
-            state.Instructions.AddRange(METHOD_EPILOGUE);
-
-            //Now that we have the stack size, we must patch the prologue/epilogue with the size
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[1]).I10 =(uint)((-(state.MaxStackDepth * (REGISTER_SIZE / 4))) & 0x3ff);
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[2]).I10 = (uint)((-(state.MaxStackDepth * REGISTER_SIZE)) & 0x3ff);
-            ((SPEEmulator.OpCodes.Bases.RI10)state.Instructions[state.Instructions.Count - 3]).I10 = state.MaxStackDepth * (REGISTER_SIZE);
-
 
             return state;
         }
 
+        /// <summary>
+        /// Adds an ABI compliant SPE method prolouge to the instruction stream
+        /// </summary>
+        private static List<SPEEmulator.OpCodes.Bases.Instruction> GenerateProlouge(CompiledMethod state)
+        {
+            List<SPEEmulator.OpCodes.Bases.Instruction> tmplist = new List<SPEEmulator.OpCodes.Bases.Instruction>();
+
+            tmplist.Add(new SPEEmulator.OpCodes.stqd(_LR, _SP, 1));
+
+            if (state.MaxStackDepth * (REGISTER_SIZE / 4) <= 0x1FF)
+                tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _SP, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE / 4))) & 0x3ff)));
+            else if (state.MaxStackDepth * (REGISTER_SIZE / 4) <= 0x7FFF)
+            {
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
+                tmplist.Add(new SPEEmulator.OpCodes.a(_TMP0, _SP, _TMP0));
+                tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _TMP0, 0));
+            }
+            else
+            {
+                //Note if this restraint is removed, beware that all code that uses "lqd $target, _SP(index)" won't work
+                throw new Exception("Stack space is larger than 0x7fff");
+            }
+
+            if (state.MaxStackDepth * (REGISTER_SIZE) <= 0x1FF)
+                tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
+            else if (state.MaxStackDepth * (REGISTER_SIZE) <= 0x7FFF)
+            {
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
+                tmplist.Add(new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0));
+            }
+            else
+                throw new Exception("Stack space is larger than 0x7fff");
+
+            return tmplist;
+        }
+
+        /// <summary>
+        /// Adds an ABI compliant SPE method epilouge to the instruction stream
+        /// </summary>
+        private static List<SPEEmulator.OpCodes.Bases.Instruction> GenerateEpilouge(CompiledMethod state)
+        {
+            List<SPEEmulator.OpCodes.Bases.Instruction> tmplist = new List<SPEEmulator.OpCodes.Bases.Instruction>(); 
+            
+            if (state.MaxStackDepth * REGISTER_SIZE <= 0x1FF)
+                tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, state.MaxStackDepth * REGISTER_SIZE));
+            else if (state.MaxStackDepth * REGISTER_SIZE <= 0x7FFF)
+            {
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, state.MaxStackDepth * (REGISTER_SIZE)));
+                tmplist.Add(new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0));
+            }
+            else
+                throw new Exception("Stack space is larger than 0x7fff");
+
+            tmplist.Add(new SPEEmulator.OpCodes.lqd(_LR, _SP, 1));
+            tmplist.Add(new SPEEmulator.OpCodes.bi(_LR, _LR));
+
+            return tmplist;
+        }
 
         private static void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, JITManager.IR.InstructionElement el)
         {
