@@ -16,23 +16,38 @@ namespace CILFac
             //Unchecked required because we overflow a long with the constants
             unchecked
             {
-                test = (long)umul(0xffff, 0xffffa);
-                if (test != 0xFFFEA0006L)
-                    test = Math.Max(test, 0xFFFEA0006L);
+                long a;
+                long b;
 
-                test = mul(0xffffffff, -5);
+                a = 0xffffffff;
+                b = -5;
+                test = a * b;
                 if (test != (long)0xFFFFFFFB00000005)
                     test = Math.Max(test, (long)0xFFFFFFFB00000005);
 
-                test = mul(0xffff, 0xa);
+                a = 0xffff;
+                b = 0xffffa;
+
+                test = a * b;
+                if (test != 0xFFFEA0006L)
+                    test = Math.Max(test, 0xFFFEA0006L);
+
+                
+                a = 0xffff;
+                b = 0xa;
+                test = a * b;
                 if (test != 0x9FFF6L)
                     test = Math.Max(test, 0x9FFF6L);
 
-                test = mul(0xffffffff, 0xafffa);
+                a = 0xffffffff;
+                b = 0xafffa;
+                test = a * b;
                 if (test != 0xAFFF9FFF50006L)
                     test = Math.Max(test, 0xAFFF9FFF50006L);
 
-                test = mul(0xffffffff, 0xffffffff);
+                a = 0xffffffff;
+                b = 0xffffffff;
+                test = a * b;
                 if (test != (long)(0xFFFFFFFE00000001L))
                     test = Math.Max(test, (long)0xFFFFFFFE00000001L);
             }
@@ -93,58 +108,7 @@ namespace CILFac
             if (number == 0)
                 return 1;
             else
-                return mul(number, Factorial(number - 1));
-        }
-
-
-        /// <summary>
-        /// Emulated 64 bit multiplication with 16 bit multiply
-        /// </summary>
-        /// <param name="a">Operand a</param>
-        /// <param name="b">Operand b</param>
-        /// <returns>The result of multiplying a with b</returns>
-        private static long mul(long a, long b)
-        {
-            bool isANegative = a < 0;
-            bool isBNegative = b < 0;
-            bool invertResult = isANegative != isBNegative;
-
-            if (isANegative)
-                a = ~(a - 1);
-            if (isBNegative)
-                b = ~(b - 1);
-
-            ulong result = umul((ulong)a, (ulong)b);
-
-            if (invertResult)
-                return (long)~(result - 1);
-            else
-                return (long)result;
-        }
-
-        /// <summary>
-        /// Emulated 64 bit multiplication with 16 bit multiply
-        /// </summary>
-        /// <param name="a">Operand a</param>
-        /// <param name="b">Operand b</param>
-        /// <returns>The result of multiplying a with b</returns>
-        private static ulong umul(ulong a, ulong b)
-        {
-            uint a3 = (uint)(a & 0xffff);
-            uint a2 = (uint)((a >> 16) & 0xffff);
-            uint a1 = (uint)((a >> 32) & 0xffff);
-            //uint a0 = (uint)((a & 0xffff)) >> 48;
-
-            uint b3 = (uint)(b & 0xffff);
-            uint b2 = (uint)((b >> 16) & 0xffff);
-            uint b1 = (uint)((b >> 32) & 0xffff);
-            //int b0 = (int)((b & 0xffff)) >> 48;
-
-            ulong r = a3 * b3;
-            r += ((ulong)(a3 * b2) + (ulong)(a2 * b3)) << 16;
-            r += ((ulong)(a3 * b1) + (ulong)(a2 * b2) + (ulong)(a1 * b3)) << 32;
-            r += ((ulong)(a2 * b1) + (ulong)(a1 * b2)) << 48;
-            return r;
+                return number * Factorial(number - 1);
         }
     }
 }

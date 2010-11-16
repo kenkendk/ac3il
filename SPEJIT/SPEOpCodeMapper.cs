@@ -782,8 +782,14 @@ namespace SPEJIT
                 BinaryOp(new SPEEmulator.OpCodes.dfm(_TMP0, _TMP1, _TMP0));
             else if (t == typeof(long))
             {
-                //We have no mpyd :(
-                BinaryOp(new SPEEmulator.OpCodes.mpy(_TMP0, _TMP1, _TMP0));
+                //64bit multiply is emulated with a function call
+                PopStack(_ARG0 + 1);
+                PopStack(_ARG0);
+
+                m_state.RegisterCall(CompiledMethod.m_builtins["umul"]);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(0, 0xffff));
+
+                PushStack(_ARG0);
             }
             else
                 throw new InvalidProgramException();
@@ -824,9 +830,28 @@ namespace SPEJIT
             }
             else if (t == typeof(long))
             {
+                //We need to do this with each dword, so we mask the low dword for _TMP2
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.fsmbi(_TMP2, 0xff00));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_TMP2, _TMP2, _TMP0));
+
+                //Perform shl on both high and low dword for bits, eg modulo 8
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbi(_TMP0, _TMP0, _TMP1));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbi(_TMP2, _TMP2, _TMP1));
+
+                //Calculate the number of bytes to shift
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.rotmi(_TMP1, _TMP1, ((-3) & 0x7F)));
+
+                //Perform shl on both high and low dword for bytes
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqby(_TMP0, _TMP0, _TMP1));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqby(_TMP2, _TMP2, _TMP1));
+
+                //Mask out any bits that are shifted from the low dword into the high dword
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.fsmbi(_TMP3, 0x00ff));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP3));
+
+                //Combine the two dwords
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_TMP0, _TMP0, _TMP2));
+
             }
             else
                 throw new InvalidProgramException();
@@ -883,8 +908,25 @@ namespace SPEJIT
 
                 if (el.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Shr_Un)
                 {
+                    //Mask out the high dword so it doesn't flow into the lower dword
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.fsmbi(_TMP3, 0x00ff));
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_TMP3, _TMP0, _TMP3));
+                    
+                    //Rotate the high dword
                     m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqmby(_TMP0, _TMP0, _TMP1));
                     m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqmbi(_TMP0, _TMP0, _TMP2));
+
+                    //Rotate the low dword
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqmby(_TMP3, _TMP3, _TMP1));
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqmbi(_TMP3, _TMP3, _TMP2));
+
+                    //Mask out any overflow from the high dword rotate
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.fsmbi(_TMP2, 0xff00));
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_TMP2, _TMP2, _TMP0));
+
+                    //Combine the two results
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_TMP0, _TMP3, _TMP0));
+
                 }
                 else
                 {
@@ -910,7 +952,6 @@ namespace SPEJIT
             else if (t == typeof(long))
             {
                 //We have no addd, so we make one ourselves
-
                 PopStack(_TMP1);
                 PopStack(_TMP0);
 

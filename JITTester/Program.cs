@@ -58,6 +58,12 @@ namespace JITTester
         [STAThread]
         static void Main(string[] args)
         {
+            ulong z = 0xFFFFFFFFFFFFFFFB;
+            ulong f = 0xa;
+
+            if (umul(z, f) != 0xFFFFFFFFFFFFFFCE)
+                Console.WriteLine("Broken"); 
+
             if (umul(0xffff, 0xffffa) != 0xffffL * 0xffffa)
                 Console.WriteLine("Broken");
 
@@ -74,10 +80,12 @@ namespace JITTester
 
             if (n != mul(0xffffffff, 0xffffffff))
                 Console.WriteLine("Broken");
-
-            if (0xffffffff * -5 != mul(0xffffffff, -5))
-                Console.WriteLine("Broken");
-
+            
+            unchecked
+            {
+                if ((0xffffffffu * (ulong)-5) != umul(0xffffffffu, (ulong)-5))
+                    Console.WriteLine("Broken");
+            }
             try
             {
                 string startPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -156,17 +164,17 @@ namespace JITTester
             uint a3 = (uint)(a & 0xffff);
             uint a2 = (uint)((a >> 16) & 0xffff);
             uint a1 = (uint)((a >> 32) & 0xffff);
-            //uint a0 = (uint)((a & 0xffff)) >> 48;
+            uint a0 = (uint)((a >> 48) & 0xffff);
 
             uint b3 = (uint)(b & 0xffff);
             uint b2 = (uint)((b >> 16) & 0xffff);
             uint b1 = (uint)((b >> 32) & 0xffff);
-            //int b0 = (int)((b & 0xffff)) >> 48;
+            uint b0 = (uint)((b >> 48) & 0xffff);
 
             ulong r = a3 * b3;
             r += ((ulong)(a3 * b2) + (ulong)(a2 * b3)) << 16;
             r += ((ulong)(a3 * b1) + (ulong)(a2 * b2) + (ulong)(a1 * b3)) << 32;
-            r += ((ulong)(a2 * b1) + (ulong)(a1 * b2)) << 48;
+            r += ((ulong)(a2 * b1) + (ulong)(a1 * b2) + (ulong)(a3 * b0) + (ulong)(a0 * b3)) << 48;
 
             return r;
         }

@@ -62,7 +62,27 @@ namespace SPEJIT
         /// </summary>
         private int m_returnOffset;
 
+        /// <summary>
+        /// The method that this compilation belongs to
+        /// </summary>
         public MethodEntry Method { get { return m_method; } }
+
+        /// <summary>
+        /// A cached list of the builtin functions
+        /// </summary>
+        internal static IDictionary<string, Mono.Cecil.MethodDefinition> m_builtins = null;
+
+        /// <summary>
+        /// Static initializer, used to load the builtins
+        /// </summary>
+        static CompiledMethod()
+        {
+            m_builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>();
+
+            foreach (Mono.Cecil.MethodDefinition mdef in Mono.Cecil.AssemblyFactory.GetAssembly(System.Reflection.Assembly.GetExecutingAssembly().Location).MainModule.Types["SPEJIT.BuiltInMethods"].Methods)
+                m_builtins.Add(mdef.Name, mdef);
+        }
+
 
         internal CompiledMethod(MethodEntry method)
         {
@@ -73,6 +93,17 @@ namespace SPEJIT
             m_calls = new List<KeyValuePair<int, Mono.Cecil.MethodReference>>();
             m_instructionList = new List<SPEEmulator.OpCodes.Bases.Instruction>();
             m_constantLoads = new List<KeyValuePair<int, string>>();
+        }
+
+        public List<Mono.Cecil.MethodReference> CalledMethods
+        {
+            get
+            {
+                List<Mono.Cecil.MethodReference> res = new List<Mono.Cecil.MethodReference>();
+                foreach (KeyValuePair<int, Mono.Cecil.MethodReference> k in m_calls)
+                    res.Add(k.Value);
+                return res;
+            }
         }
 
         public int StackDepth 

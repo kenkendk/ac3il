@@ -116,7 +116,7 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The compiled methods</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> methods)
+        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> _methods)
         {
             //TODO: Not sure if the SPE always starts at address 0, or if the start offset can be specified
             //Seems like all ELF files have a special ".init" section
@@ -125,6 +125,26 @@ namespace SPEJIT
 
             int callhandlerOffset = output.Count;
             output.AddRange(CALL_HANDLER);
+
+            List<CompiledMethod> methods = new List<CompiledMethod>();
+            foreach (ICompiledMethod m in _methods)
+                methods.Add((CompiledMethod)m);
+
+            //Get a list of builtins
+            Dictionary<string, Mono.Cecil.MethodDefinition> builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>(CompiledMethod.m_builtins);
+
+            for(int i = 0; i < methods.Count; i++)
+            {
+                CompiledMethod cm = methods[i];
+
+                foreach (Mono.Cecil.MethodReference mr in cm.CalledMethods)
+                    if (mr.DeclaringType.FullName == "SPEJIT.BuiltInMethods" && builtins.ContainsKey(mr.Name))
+                    {
+                        methods.Add((CompiledMethod)JITManager.JITManager.JIT(this, builtins[mr.Name]));
+                        builtins.Remove(mr.Name);
+                    }
+                            
+            }
 
             //Gather all required constants
             Dictionary<string, int> constants = new Dictionary<string, int>();
@@ -149,6 +169,8 @@ namespace SPEJIT
                 cm.Epilouge = GenerateEpilouge(cm);
                 offset += cm.Instructions.Count + cm.Prolouge.Count + cm.Epilouge.Count;
             }
+
+            
 
             //Now that we know the layout of each method, we can patch the call instructions
             foreach (CompiledMethod cm in methods)

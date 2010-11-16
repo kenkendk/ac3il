@@ -31,6 +31,12 @@ namespace JITManager
                 throw new Exception("Could not find program file: " + assemblyfile);
         }
 
+        public static ICompiledMethod JIT(IJITCompiler compiler, Mono.Cecil.MethodDefinition mdef)
+        {
+            return compiler.JIT(BuildIRTree(mdef));
+        }
+
+
         private static void RegisterAllocator(IR.MethodEntry root)
         {
             //Iterate over the independent sub trees
