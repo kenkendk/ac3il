@@ -45,7 +45,6 @@
   <ItemGroup>
     <Compile Include="BuiltInMethods.cs" />
     <Compile Include="CellSPEManager.cs" />
-    <Compile Include="ISPEManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SPEJITCompiler.cs" />
     <Compile Include="CompiledMethod.cs" />
@@ -57,9 +56,9 @@
       <Project>{2BC83C9E-7D34-4F3F-81BB-1855B5C55BE2}</Project>
       <Name>SPEEmulator</Name>
     </ProjectReference>
-    <ProjectReference Include="..\JITManager\JITManager.csproj">
+    <ProjectReference Include="..\AccCIL\AccCIL.csproj">
       <Project>{448B4DFB-CC22-4D02-8FD9-877892457BA9}</Project>
-      <Name>JITManager</Name>
+      <Name>AccCIL</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup />

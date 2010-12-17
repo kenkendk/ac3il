@@ -8,11 +8,11 @@ namespace SPEJIT
     /// <summary>
     /// Implementation of an SPE controller for a physical SPE device
     /// </summary>
-    class CellSPEManager : ISPEManager
+    class CellSPEManager : AccCIL.IAccellerator
     {
         #region ISPEManager Members
 
-        public void LoadProgram(IEnumerable<CompiledMethod> methods)
+        public void LoadProgram(IEnumerable<AccCIL.ICompiledMethod> methods)
         {
             throw new NotImplementedException();
         }

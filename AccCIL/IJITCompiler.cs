@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace JITManager
+namespace AccCIL
 {
     public interface IJITCompiler
     {

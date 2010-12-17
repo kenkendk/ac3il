@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace SPEJIT
+namespace AccCIL
 {
-    public interface ISPEManager
+    public interface IAccellerator
     {
         /// <summary>
         /// Prepares the SPE by loading compiled methods and control code onto it
         /// </summary>
         /// <param name="methods">The list of methods to place on the SPE, the first method in the list MUST be the entry method</param>
-        void LoadProgram(IEnumerable<CompiledMethod> methods);
+        void LoadProgram(IEnumerable<ICompiledMethod> methods);
 
         /// <summary>
         /// Executed the entry method on the SPE with the given arguments

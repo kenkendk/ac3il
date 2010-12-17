@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using JITManager;
+using AccCIL;
 
 namespace SPEJIT
 {
@@ -101,10 +101,10 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The methods to compile</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<JITManager.IR.MethodEntry> methods)
+        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<AccCIL.IR.MethodEntry> methods)
         {
             List<ICompiledMethod> cmps = new List<ICompiledMethod>();
-            foreach (JITManager.IR.MethodEntry me in methods)
+            foreach (AccCIL.IR.MethodEntry me in methods)
                 cmps.Add(JIT(me));
 
             EmitInstructionStream(outstream, assemblyOutput, cmps);
@@ -140,7 +140,7 @@ namespace SPEJIT
                 foreach (Mono.Cecil.MethodReference mr in cm.CalledMethods)
                     if (mr.DeclaringType.FullName == "SPEJIT.BuiltInMethods" && builtins.ContainsKey(mr.Name))
                     {
-                        methods.Add((CompiledMethod)JITManager.JITManager.JIT(this, builtins[mr.Name]));
+                        methods.Add((CompiledMethod)AccCIL.AccCIL.JIT(this, builtins[mr.Name]));
                         builtins.Remove(mr.Name);
                     }
                             
@@ -329,7 +329,7 @@ namespace SPEJIT
         };
 
 
-        public ICompiledMethod JIT(JITManager.IR.MethodEntry method)
+        public ICompiledMethod JIT(AccCIL.IR.MethodEntry method)
         {
             CompiledMethod state = new CompiledMethod(method);
             SPEOpCodeMapper mapper = new SPEOpCodeMapper(state);
@@ -361,7 +361,7 @@ namespace SPEJIT
             int requiredStackDepth = state.StackDepth;
 
             //Now add each parsed subtree
-            foreach (JITManager.IR.InstructionElement el in method.Childnodes)
+            foreach (AccCIL.IR.InstructionElement el in method.Childnodes)
             {
                 RecursiveTranslate(state, mapper, el);
                 System.Diagnostics.Trace.Assert(state.StackDepth >= requiredStackDepth);
@@ -442,9 +442,9 @@ namespace SPEJIT
             return tmplist;
         }
 
-        private static void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, JITManager.IR.InstructionElement el)
+        private static void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, AccCIL.IR.InstructionElement el)
         {
-            foreach (JITManager.IR.InstructionElement els in el.Childnodes)
+            foreach (AccCIL.IR.InstructionElement els in el.Childnodes)
                 RecursiveTranslate(state, mapper, els);
 
             System.Reflection.MethodInfo translator;

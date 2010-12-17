@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 
-namespace JITManager
+namespace AccCIL
 {
-    public class JITManager
+    public class AccCIL
     {
 
         public static List<ICompiledMethod> JIT(IJITCompiler compiler, string assemblyfile)

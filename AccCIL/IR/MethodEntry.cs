@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace JITManager.IR
+namespace AccCIL.IR
 {
     /// <summary>
     /// Represents a marker instruction that indicates a method entry

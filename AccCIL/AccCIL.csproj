@@ -49,6 +49,7 @@
     <Compile Include="IR\MethodEntry.cs" />
     <Compile Include="IR\MethodExit.cs" />
     <Compile Include="IR\VirtualRegister.cs" />
+    <Compile Include="IAccellerator.cs" />
     <Compile Include="JITManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

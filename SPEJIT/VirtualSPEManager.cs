@@ -8,11 +8,11 @@ namespace SPEJIT
     /// <summary>
     /// Implementation of an SPE manager for the SPE emulator
     /// </summary>
-    public class VirtualSPEManager : ISPEManager
+    public class VirtualSPEManager : AccCIL.IAccellerator
     {
         #region ISPEManager Members
 
-        public void LoadProgram(IEnumerable<CompiledMethod> methods)
+        public void LoadProgram(IEnumerable<AccCIL.ICompiledMethod> methods)
         {
             throw new NotImplementedException();
         }

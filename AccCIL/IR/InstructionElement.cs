@@ -7,7 +7,7 @@ using System.Diagnostics;
 using System.Reflection;
 
 
-namespace JITManager.IR
+namespace AccCIL.IR
 {
     /// <summary>
     /// Represents a single node in the instruction tree

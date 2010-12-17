@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using JITManager;
-using JITManager.IR;
+using AccCIL;
+using AccCIL.IR;
 
 namespace SPEJIT
 {

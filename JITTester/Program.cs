@@ -91,7 +91,7 @@ namespace JITTester
                 string startPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
 
                 SPEJIT.SPEJITCompiler compiler = new SPEJIT.SPEJITCompiler();
-                List<JITManager.ICompiledMethod> methods = JITManager.JITManager.JIT(new SPEJIT.SPEJITCompiler(), System.IO.Path.Combine(startPath, "CILFac.dll"));
+                List<AccCIL.ICompiledMethod> methods = AccCIL.AccCIL.JIT(new SPEJIT.SPEJITCompiler(), System.IO.Path.Combine(startPath, "CILFac.dll"));
 
                 //For the test setup, we want the main method to be at index 0
                 int ix = methods.FindIndex(x => x.Method.Method.Name == "SPE_Main");
@@ -99,7 +99,7 @@ namespace JITTester
                     throw new Exception("Unable to find the startup function \"SPE_Main()\"");
                 else if (ix != 0)
                 {
-                    JITManager.ICompiledMethod cm = methods[ix];
+                    AccCIL.ICompiledMethod cm = methods[ix];
                     methods.RemoveAt(ix);
                     methods.Insert(0, cm);
                 }
