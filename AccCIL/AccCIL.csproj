@@ -50,7 +50,7 @@
     <Compile Include="IR\MethodExit.cs" />
     <Compile Include="IR\VirtualRegister.cs" />
     <Compile Include="IAccellerator.cs" />
-    <Compile Include="JITManager.cs" />
+    <Compile Include="AccCIL.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
