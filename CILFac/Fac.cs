@@ -9,10 +9,49 @@ namespace CILFac
     {
         public static void SPE_Main()
         {
+            TestLogicals();
+            TestArithmetics();
+            TestMultiply();
+
+            long x = Factorial(10);
+            Console.WriteLine(x);
+        }
+
+        private static void TestArithmetics()
+        {
+            int ai;
+            int bi;
+
+            long al;
+            long bl;
+
+            ai = 0;
+            bi = 5;
+
+            int ri = ai - bi;
+            if (ri != -5)
+                ri = Math.Max(ri, -5);
+
+            ri = bi - ai;
+            if (ri != 5)
+                ri = Math.Max(ri, 5);
+
+            al = 0;
+            bl = 5;
+
+            long rl = al - bl;
+            if (rl != -5)
+                rl = Math.Max(rl, -5);
+
+            rl = bl - al;
+            if (rl != 5)
+                rl = Math.Max(rl, 5);
+        }
+
+        private static void TestMultiply()
+        {
             long test;
-
-            //TestLogicals();
-
+            
             //Unchecked required because we overflow a long with the constants
             unchecked
             {
@@ -32,7 +71,7 @@ namespace CILFac
                 if (test != 0xFFFEA0006L)
                     test = Math.Max(test, 0xFFFEA0006L);
 
-                
+
                 a = 0xffff;
                 b = 0xa;
                 test = a * b;
@@ -51,9 +90,6 @@ namespace CILFac
                 if (test != (long)(0xFFFFFFFE00000001L))
                     test = Math.Max(test, (long)0xFFFFFFFE00000001L);
             }
-
-            long x = Factorial(10);
-            Console.WriteLine(x);
         }
 
         private static void TestLogicals()
@@ -93,6 +129,17 @@ namespace CILFac
             bool isNLessThanM = n < m;
             bool isMLessThanN = m < n;
 
+            if (isXLessThanY | !isYLessThanX | !isXGreaterThanY | isYGreaterThanX)
+                Console.WriteLine(4);
+            if (!isALessThanB | isBLessThanA | isAGreaterThanB | !isBGreaterThanA)
+                Console.WriteLine(5);
+            if (!isAGreaterThanX | isXGreaterThanA | isALessThanX | !isXLessThanA)
+                Console.WriteLine(6);
+            if (!isAGreaterThanY | isYGreaterThanA | isALessThanY | !isYLessThanA)
+                Console.WriteLine(7);
+            if (isNGreaterThanM | !isMGreaterThanN | !isNLessThanM | isMLessThanN)
+                Console.WriteLine(8);
+
             if (
                 isXLessThanY | !isYLessThanX | !isXGreaterThanY | isYGreaterThanX |
                 !isALessThanB | isBLessThanA | isAGreaterThanB | !isBGreaterThanA |
@@ -100,7 +147,7 @@ namespace CILFac
                 !isAGreaterThanY | isYGreaterThanA | isALessThanY | !isYLessThanA |
                 isNGreaterThanM | !isMGreaterThanN | !isNLessThanM | isMLessThanN
                 )
-                Console.WriteLine(y);
+                Console.WriteLine(9);
         }
 
         public static long Factorial(long number)

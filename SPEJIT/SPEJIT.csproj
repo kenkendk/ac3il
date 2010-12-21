@@ -46,9 +46,11 @@
     <Compile Include="BuiltInMethods.cs" />
     <Compile Include="CellSPEManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RegisterAllocator.cs" />
     <Compile Include="SPEJITCompiler.cs" />
     <Compile Include="CompiledMethod.cs" />
     <Compile Include="SPEOpCodeMapper.cs" />
+    <Compile Include="TemporaryRegister.cs" />
     <Compile Include="VirtualSPEManager.cs" />
   </ItemGroup>
   <ItemGroup>

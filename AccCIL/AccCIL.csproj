@@ -45,13 +45,16 @@
   <ItemGroup>
     <Compile Include="ICompiledMethod.cs" />
     <Compile Include="IJITCompiler.cs" />
+    <Compile Include="IRegisterAllocator.cs" />
     <Compile Include="IR\InstructionElement.cs" />
     <Compile Include="IR\MethodEntry.cs" />
     <Compile Include="IR\MethodExit.cs" />
     <Compile Include="IR\VirtualRegister.cs" />
     <Compile Include="IAccellerator.cs" />
     <Compile Include="AccCIL.cs" />
+    <Compile Include="LinqExtensions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SimpleAllocator.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

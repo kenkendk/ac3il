@@ -43,7 +43,12 @@ namespace SPEJIT
         private List<SPEEmulator.OpCodes.Bases.Instruction> m_instructionList;
 
         /// <summary>
-        /// The current depth of the stack
+        /// The current stack
+        /// </summary>
+        private Stack<VirtualRegister> m_stack;
+
+        /// <summary>
+        /// The depth of the current stack, disregarding register assigned variables
         /// </summary>
         private int m_stackDepth;
 
@@ -93,6 +98,7 @@ namespace SPEJIT
             m_calls = new List<KeyValuePair<int, Mono.Cecil.MethodReference>>();
             m_instructionList = new List<SPEEmulator.OpCodes.Bases.Instruction>();
             m_constantLoads = new List<KeyValuePair<int, string>>();
+            m_stack = new Stack<VirtualRegister>();
         }
 
         public List<Mono.Cecil.MethodReference> CalledMethods
@@ -106,15 +112,24 @@ namespace SPEJIT
             }
         }
 
-        public int StackDepth 
-        { 
-            get { return m_stackDepth; }
-            set
-            {
-                m_stackDepth = value;
-                m_maxStackDepth = Math.Max(m_maxStackDepth, m_stackDepth);
-            }
+
+        public VirtualRegister PopStack()
+        {
+            VirtualRegister r = m_stack.Pop();
+            if (r is TemporaryRegister || r.RegisterNumber < 0)
+                m_stackDepth--;
+            return r;
         }
+
+        public void PushStack(VirtualRegister r)
+        {
+            m_stack.Push(r);
+            if (r is TemporaryRegister || r.RegisterNumber < 0)
+                m_stackDepth++;
+            m_maxStackDepth = Math.Max(m_maxStackDepth, m_stackDepth);
+        }
+
+        public int StackDepth { get { return m_stackDepth; } }
 
         public uint MaxStackDepth
         {

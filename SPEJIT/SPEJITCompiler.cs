@@ -233,7 +233,7 @@ namespace SPEJIT
                             if (p.Value == offset)
                                 assemblyOutput.WriteLine("# Function entry: " + p.Key.Name);
                     }
-                    assemblyOutput.WriteLine(i.ToString());
+                    assemblyOutput.WriteLine((offset * 4).ToString("x4") + ": " + i.ToString());
                     offset++;
                 }
             }
@@ -345,9 +345,23 @@ namespace SPEJIT
             if (permRegs > MAX_LV_REGISTERS)
                 throw new Exception("Too many locals+arguments");
 
+            //Make sure the register usage is clean
+            method.ResetVirtualRegisters();
+
+            //TODO: should be able to re-use registers used by the arguments, which frees appx 70 extra registers
+            List<int> usedRegs = new RegisterAllocator().AllocateRegisters(_LV0 + permRegs, new AccCIL.SimpleAllocator(), method);
+
             //If we need to store locals, we must preserve the local variable registers
             for (int i = 0; i < permRegs; i++)
-                mapper.PushStack((uint)(_LV0 + i));
+            {
+                mapper.PushStack(new TemporaryRegister((uint)(_LV0 + i)));
+                usedRegs.Remove(_LV0 + i);
+            }
+
+            //All remaining used registers must also be preserved
+            foreach (int i in usedRegs)
+                if (i > _LV0)
+                    mapper.PushStack(new TemporaryRegister((uint)(i)));
 
             //Clear as required
             if (method.Method.Body.InitLocals)
@@ -365,18 +379,23 @@ namespace SPEJIT
             {
                 RecursiveTranslate(state, mapper, el);
                 System.Diagnostics.Trace.Assert(state.StackDepth >= requiredStackDepth);
-
             }
 
             state.EndFunction();
 
             //If the function returns a value, place it in $3
             if (state.Method.Method.ReturnType.ReturnType.FullName != "System.Void")
-                mapper.PopStack(_ARG0);
+                mapper.PopStack(_ARG0, true);
+
+            //All used registers must be preserved
+            foreach (int i in usedRegs)
+                if (i > _LV0)
+                    mapper.PopStack((uint)(i), true);
 
             //If we had to store locals, we must restore the local variable registers
             for (int i = 0; i < permRegs; i++)
-                mapper.PopStack((uint)(_LV0 + (permRegs - i - 1)));
+                mapper.PopStack((uint)(_LV0 + (permRegs - i - 1)), true);
+
 
             System.Diagnostics.Trace.Assert(state.StackDepth == 0);
 
@@ -396,7 +415,7 @@ namespace SPEJIT
                 tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _SP, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE / 4))) & 0x3ff)));
             else if (state.MaxStackDepth * (REGISTER_SIZE / 4) <= 0x7FFF)
             {
-                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0xFFFF)));
                 tmplist.Add(new SPEEmulator.OpCodes.a(_TMP0, _SP, _TMP0));
                 tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _TMP0, 0));
             }
@@ -410,7 +429,7 @@ namespace SPEJIT
                 tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
             else if (state.MaxStackDepth * (REGISTER_SIZE) <= 0x7FFF)
             {
-                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0xFFFF)));
                 tmplist.Add(new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0));
             }
             else

@@ -21,7 +21,7 @@ namespace AccCIL
                     foreach (MethodDefinition mdef in tref.Methods)
                     {
                         IR.MethodEntry root = BuildIRTree(mdef);
-                        //RegisterAllocator(root);
+                        root.ResetVirtualRegisters();
                         methods.Add(compiler.JIT(root));
                     }
 
@@ -34,45 +34,6 @@ namespace AccCIL
         public static ICompiledMethod JIT(IJITCompiler compiler, Mono.Cecil.MethodDefinition mdef)
         {
             return compiler.JIT(BuildIRTree(mdef));
-        }
-
-
-        private static void RegisterAllocator(IR.MethodEntry root)
-        {
-            //Iterate over the independent sub trees
-            foreach (IR.InstructionElement el in root.Childnodes)
-            {
-                //We assume that the output of a tree is a value
-                switch (el.Instruction.OpCode.Code)
-                {
-                    case Mono.Cecil.Cil.Code.Stloc:
-                    case Mono.Cecil.Cil.Code.Stloc_0:
-                    case Mono.Cecil.Cil.Code.Stloc_1:
-                    case Mono.Cecil.Cil.Code.Stloc_2:
-                    case Mono.Cecil.Cil.Code.Stloc_3:
-                    case Mono.Cecil.Cil.Code.Stloc_S:
-                    case Mono.Cecil.Cil.Code.Ret:
-                        //We now assign a virtual register for that value,
-                        // and pass down the register in the tree to allow sub-operations
-                        // inject values into it
-                        el.Registers = new IR.VirtualRegister[] { new IR.VirtualRegister() };
-
-                        break;
-                    default:
-                        throw new Exception("Unexpected code fragment");
-                }
-            }
-        }
-
-        private static void RecursiveRegisterAssigner(IR.InstructionElement el)
-        {
-            if (el.Childnodes.Length == 1 && NumberOfElementsPoped(el.Instruction.OpCode.StackBehaviourPop) == 1)
-            {
-            }
-
-            foreach (IR.InstructionElement sel in el.Childnodes)
-            {
-            }
         }
 
         private static int NumberOfElementsPoped(Mono.Cecil.Cil.StackBehaviour s, object operand = null)
