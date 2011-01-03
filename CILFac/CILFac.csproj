@@ -43,6 +43,12 @@
     <Compile Include="Fac.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AccCIL\AccCIL.csproj">
+      <Project>{448B4DFB-CC22-4D02-8FD9-877892457BA9}</Project>
+      <Name>AccCIL</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
