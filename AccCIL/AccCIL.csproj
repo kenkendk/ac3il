@@ -8,8 +8,8 @@
     <ProjectGuid>{448B4DFB-CC22-4D02-8FD9-877892457BA9}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>JITManager</RootNamespace>
-    <AssemblyName>JITManager</AssemblyName>
+    <RootNamespace>AccCIL</RootNamespace>
+    <AssemblyName>AccCIL</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AccelleratorBase.cs" />
     <Compile Include="ICompiledMethod.cs" />
     <Compile Include="IJITCompiler.cs" />
     <Compile Include="IRegisterAllocator.cs" />

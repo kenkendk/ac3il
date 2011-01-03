@@ -57,7 +57,7 @@ namespace JITTester
         [STAThread]
         static void Main(string[] args)
         {
-            ulong z = 0xFFFFFFFFFFFFFFFB;
+            /*ulong z = 0xFFFFFFFFFFFFFFFB;
             ulong f = 0xa;
 
             if (umul(z, f) != 0xFFFFFFFFFFFFFFCE)
@@ -84,11 +84,11 @@ namespace JITTester
             {
                 if ((0xffffffffu * (ulong)-5) != umul(0xffffffffu, (ulong)-5))
                     Console.WriteLine("Broken");
-            }
+            }*/
 
             try
             {
-                SPEJIT.VirtualSPEManager virtualSPE = new SPEJIT.VirtualSPEManager();
+                AccCIL.IAccellerator virtualSPE = new SPEJIT.VirtualSPEManager();
                 //virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
                 virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
             }
