@@ -21,7 +21,7 @@ namespace SPEJIT
             throw new NotImplementedException();
         }
 
-        protected override object DoAccelerate(string assembly, string methodName, Type returnType = null, params object[] args)
+        protected override T DoAccelerate<T>(string assembly, string methodName, params object[] args)
         {
             // Create LS
 
@@ -76,7 +76,7 @@ namespace SPEJIT
             // Run program
             SPEEmulatorTestApp.Program.Main(new string[] { elffile });
 
-            return null;
+            return default(T);
         }
     }
 }

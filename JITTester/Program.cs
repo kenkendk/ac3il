@@ -89,8 +89,8 @@ namespace JITTester
             try
             {
                 AccCIL.IAccellerator virtualSPE = new SPEJIT.VirtualSPEManager();
-                //virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
-                virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
+                long result = virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
+                //virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
             }
             catch (Exception ex)
             {
