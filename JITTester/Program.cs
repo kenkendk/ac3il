@@ -57,6 +57,9 @@ namespace JITTester
         [STAThread]
         static void Main(string[] args)
         {
+            System.Windows.Forms.Application.EnableVisualStyles();
+            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+
             /*ulong z = 0xFFFFFFFFFFFFFFFB;
             ulong f = 0xa;
 

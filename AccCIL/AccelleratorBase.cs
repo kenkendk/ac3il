@@ -9,6 +9,11 @@ namespace AccCIL
     {
         protected abstract T DoAccelerate<T>(string assembly, string methodName, params object[] args);
 
+        /// <summary>
+        /// Internal marker class for returntype &quot;void&quot;
+        /// </summary>
+        protected class ReturnTypeVoid { }
+
         #region ISPEManager Members
 
         public abstract void LoadProgram(IEnumerable<ICompiledMethod> methods);
@@ -102,86 +107,86 @@ namespace AccCIL
 
         public void Accelerate(Action action)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name);
         }
         public void Accelerate<InType1>(Action<InType1> action, InType1 arg1)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1);
         }
 
         public void Accelerate<InType1, InType2>(Action<InType1, InType2> action, InType1 arg1, InType2 arg2)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2);
         }
 
         public void Accelerate<InType1, InType2, InType3>(Action<InType1, InType2, InType3> action, InType1 arg1, InType2 arg2, InType3 arg3)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4>(Action<InType1, InType2, InType3, InType4> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5>(Action<InType1, InType2, InType3, InType4, InType5> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6>(Action<InType1, InType2, InType3, InType4, InType5, InType6> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10, InType11 arg11)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10, InType11 arg11, InType12 arg12)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10, InType11 arg11, InType12 arg12, InType13 arg13)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13, InType14>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13, InType14> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10, InType11 arg11, InType12 arg12, InType13 arg13, InType14 arg14)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13, InType14, InType15>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13, InType14, InType15> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10, InType11 arg11, InType12 arg12, InType13 arg13, InType14 arg14, InType15 arg15)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
         }
 
         public void Accelerate<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13, InType14, InType15, InType16>(Action<InType1, InType2, InType3, InType4, InType5, InType6, InType7, InType8, InType9, InType10, InType11, InType12, InType13, InType14, InType15, InType16> action, InType1 arg1, InType2 arg2, InType3 arg3, InType4 arg4, InType5 arg5, InType6 arg6, InType7 arg7, InType8 arg8, InType9 arg9, InType10 arg10, InType11 arg11, InType12 arg12, InType13 arg13, InType14 arg14, InType15 arg15, InType16 arg16)
         {
-            DoAccelerate<object>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
+            DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.Name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
         }
         #endregion
     }

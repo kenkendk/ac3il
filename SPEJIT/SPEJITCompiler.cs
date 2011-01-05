@@ -156,7 +156,7 @@ namespace SPEJIT
 
             //Patch the entry point adress
             int entryfunctionOffset = output.Count;
-            ((SPEEmulator.OpCodes.brsl)output[callhandlerOffset - 2]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + 2);
+            ((SPEEmulator.OpCodes.brsl)output[callhandlerOffset - INSTRUCTION_OFFSET_FOR_MAIN_BRSL]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + INSTRUCTION_OFFSET_FOR_MAIN_BRSL);
 
             //Before we emit the actual code, we need to patch all calls
             Dictionary<Mono.Cecil.MethodReference, int> methodOffsets = new Dictionary<Mono.Cecil.MethodReference, int>();
@@ -278,6 +278,11 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.ila(_TMP1, 0x1), //We need to increment the target register with 1
             new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 12), //The target register value is located in byte 3
 
+            //Adjust offset so we get the lqr instruction at the right offset
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(),
+
             //Load the current storage operation
             new SPEEmulator.OpCodes.lqr(_TMP3, 4), //Load current instruction
             new SPEEmulator.OpCodes.ori(_TMP4, _TMP3, 0), //Save an unmodified copy
@@ -311,8 +316,15 @@ namespace SPEJIT
 
             //Jump to the address of the entry function
             new SPEEmulator.OpCodes.brsl(_LR, 0xffff), //Jump to entry
-            new SPEEmulator.OpCodes.stop()
+            new SPEEmulator.OpCodes.xor(_TMP0, _TMP0, _TMP0), //Clear a pointer
+            new SPEEmulator.OpCodes.stqd(_ARG0, _TMP0, 0x0), //Copy the return value to position 0x0
+            new SPEEmulator.OpCodes.stop(0x3000)
         };
+
+        /// <summary>
+        /// The offset of the bootloader main brsl instruction, counting from the end of the bootloader
+        /// </summary>
+        private const int INSTRUCTION_OFFSET_FOR_MAIN_BRSL = 4;
 
 
         /// <summary>
@@ -320,7 +332,7 @@ namespace SPEJIT
         /// All function calls are routed through this, and it uses the PPE to resolve the actual call address
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] CALL_HANDLER = new SPEEmulator.OpCodes.Bases.Instruction[] {
-            new SPEEmulator.OpCodes.stop() //TODO: Make it actually work
+            new SPEEmulator.OpCodes.stop(0x3010) //TODO: Make it actually work
 
             //To get this working, there should be a table in memory with the current
             // methods loaded and the call instructions
