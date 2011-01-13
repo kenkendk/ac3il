@@ -125,8 +125,8 @@ namespace SPEJIT
             s.SPE.WriteLSWord(8, lsoffset);
             s.SPE.WriteLSWord(12, 0);
 
-            //System.Windows.Forms.Application.Run(s);
-            s.ShowDialog();
+            System.Windows.Forms.Application.Run(s);
+            //s.ShowDialog();
 
             Type rtype = typeof(T);
 

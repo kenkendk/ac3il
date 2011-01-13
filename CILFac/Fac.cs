@@ -14,7 +14,6 @@ namespace CILFac
             TestMultiply();
 
             long x = Factorial(10);
-            Console.WriteLine(x);
         }
 
         private static void TestArithmetics()

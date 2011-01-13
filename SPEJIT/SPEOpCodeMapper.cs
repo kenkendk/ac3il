@@ -56,7 +56,7 @@ namespace SPEJIT
                 if (m_state.StackDepth + 1 > 511)
                     throw new Exception("Too deep stack");
 
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd((uint)targetRegister, _SP, (uint)m_state.StackDepth + 1));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd((uint)targetRegister, _SP, (uint)m_state.StackDepth + 2));
 
                 if (r.RegisterNumber < 0)
                     return new VirtualRegister(targetRegister);
@@ -88,7 +88,7 @@ namespace SPEJIT
                 if (m_state.StackDepth > 511)
                     throw new Exception("Too deep stack");
 
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd((uint)sourceRegister.RegisterNumber, _SP, (uint)m_state.StackDepth));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd((uint)sourceRegister.RegisterNumber, _SP, (uint)m_state.StackDepth + 1));
             }
         }
 
@@ -770,28 +770,10 @@ namespace SPEJIT
             PushStack(new VirtualRegister(_LV0 + (uint)((Mono.Cecil.Cil.VariableReference)el.Instruction.Operand).Index));
         }
 
-        public void Brtrue_S(InstructionElement el)
-        {
-            VirtualRegister r0 = PopStack(_RTMP0);
-
-            m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz((uint)r0.RegisterNumber, 0xffff));
-        }
-
         public void Br_S(InstructionElement el)
         {
             m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
             m_state.Instructions.Add(new SPEEmulator.OpCodes.br(_RTMP0, 0xffff));
-        }
-
-        public void Bne_un_s(InstructionElement el)
-        {
-            VirtualRegister r1 = PopStack(_RTMP1);
-            VirtualRegister r0 = PopStack(_RTMP0);
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.cgt(_RTMP0, (uint)r0.RegisterNumber, (uint)r1.RegisterNumber));
-
-            m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_RTMP0, 0xffff));
         }
 
         public void Sub(InstructionElement el)
@@ -1095,9 +1077,104 @@ namespace SPEJIT
 
         public void Ret(InstructionElement el)
         {
+            //If the function returns a value, place it in $3
+            if (el.ParentMethod.ReturnType.ReturnType.FullName != "System.Void")
+                PopStack(_ARG0, true);
+
             m_state.RegisterReturn();
             m_state.Instructions.Add(new SPEEmulator.OpCodes.br(_RTMP0, 0xffff));
         }
 
+        public void Beq(InstructionElement el)
+        {
+            System.Diagnostics.Debug.Assert(el.Register == null);
+
+            //Assign a valid virtual register to prevent it from ending on stack
+            el.Register = new VirtualRegister(_RTMP0);
+
+            Ceq(el);
+
+            VirtualRegister r = PopStack(_RTMP0);
+
+            m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz((uint)r.RegisterNumber, 0xffff));
+
+            //Clear the dummy register
+            el.Register = null;
+        }
+
+        public void Beq_s(InstructionElement el)
+        {
+            Beq(el);
+        }
+
+        public void Brfalse(InstructionElement el)
+        {
+            Brtrue(el);
+
+            //Invert the branch instruction to use brz instead of brnz
+            uint regno = ((SPEEmulator.OpCodes.brnz)m_state.Instructions[m_state.Instructions.Count - 1]).RT;
+            m_state.Instructions[m_state.Instructions.Count - 1] = new SPEEmulator.OpCodes.brz(regno, 0xffff);
+        }
+
+        public void Brfalse_s(InstructionElement el)
+        {
+            Brfalse(el);
+        }
+
+        public void Brtrue(InstructionElement el)
+        {
+            VirtualRegister r = PopStack(_RTMP0);
+
+            if (el.Childnodes[0].StorageClass == typeof(long))
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_RTMP1, (uint)r.RegisterNumber, 4));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP0, _RTMP0, _RTMP1));
+                
+                m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_RTMP0, 0xffff));
+
+            }
+            else
+            {
+                m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz((uint)r.RegisterNumber, 0xffff));
+            }
+        }
+
+        public void Brtrue_s(InstructionElement el)
+        {
+            Brtrue(el);
+        }
+
+        public void Bne_un(InstructionElement el)
+        {
+            System.Diagnostics.Debug.Assert(el.Register == null);
+
+            //Assign a valid virtual register to prevent it from ending on stack
+            el.Register = new VirtualRegister(_RTMP0);
+
+            //Note: The specification states that this instruction is the same as 
+            //"ceq followed by brfalse"
+            Ceq(el);
+
+            VirtualRegister r = PopStack(_RTMP0);
+
+            m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz((uint)r.RegisterNumber, 0xffff));
+
+            //Clear the dummy register
+            el.Register = null;
+        }
+
+        public void Bne_un_s(InstructionElement el)
+        {
+            Bne_un(el);
+        }
+
+        public void Pop(InstructionElement el)
+        {
+            PopStack(_RTMP0);
+        }
     }
 }

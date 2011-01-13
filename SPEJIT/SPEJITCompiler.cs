@@ -257,10 +257,11 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.stop(), //Fourth entry is reserved for padding
 
             //Start by setting up the the SP
-            new SPEEmulator.OpCodes.il(0, 0), //Clear register $0
+            new SPEEmulator.OpCodes.xor(0, 0, 0), //Clear register $0
             new SPEEmulator.OpCodes.ila(_SP, (uint)(0x40000 - REGISTER_SIZE)), //Set SP to LS_SIZE - 16
             new SPEEmulator.OpCodes.stqd(0, _SP, 0x0), //Set the Back Chain to zero
-            new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-REGISTER_SIZE) & 0x3ff)), //Increment SP
+            new SPEEmulator.OpCodes.stqd(_SP, _SP, (uint)((-2) & 0x3ff)), //Set the Back Chain to zero
+            new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-(REGISTER_SIZE * 2)) & 0x3ff)), //Increment SP
 
             //Entry point for the application, start by loading the argument count
             new SPEEmulator.OpCodes.lqd(_TMP0, 0, 0x0), //Load the value at position 0x0
@@ -279,7 +280,6 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.shlqbyi(_TMP1, _TMP1, 12), //The target register value is located in byte 3
 
             //Adjust offset so we get the lqr instruction at the right offset
-            new SPEEmulator.OpCodes.nop(),
             new SPEEmulator.OpCodes.nop(),
             new SPEEmulator.OpCodes.nop(),
 
@@ -395,10 +395,6 @@ namespace SPEJIT
 
             state.EndFunction();
 
-            //If the function returns a value, place it in $3
-            if (state.Method.Method.ReturnType.ReturnType.FullName != "System.Void")
-                mapper.PopStack(_ARG0, true);
-
             //All used registers must be preserved
             foreach (int i in usedRegs)
                 if (i > _LV0)
@@ -423,11 +419,13 @@ namespace SPEJIT
 
             tmplist.Add(new SPEEmulator.OpCodes.stqd(_LR, _SP, 1));
 
-            if (state.MaxStackDepth * (REGISTER_SIZE / 4) <= 0x1FF)
-                tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _SP, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE / 4))) & 0x3ff)));
-            else if (state.MaxStackDepth * (REGISTER_SIZE / 4) <= 0x7FFF)
+            uint stackDepth = state.MaxStackDepth + 2;
+
+            if (stackDepth * (REGISTER_SIZE / 16) <= 0x1FF)
+                tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _SP, (uint)((-(stackDepth * (REGISTER_SIZE / 16))) & 0x3ff)));
+            else if (stackDepth * (REGISTER_SIZE / 16) <= 0x7FFF)
             {
-                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0xFFFF)));
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(stackDepth * (REGISTER_SIZE / 16))) & 0xFFFF)));
                 tmplist.Add(new SPEEmulator.OpCodes.a(_TMP0, _SP, _TMP0));
                 tmplist.Add(new SPEEmulator.OpCodes.stqd(_SP, _TMP0, 0));
             }
@@ -437,11 +435,11 @@ namespace SPEJIT
                 throw new Exception("Stack space is larger than 0x7fff");
             }
 
-            if (state.MaxStackDepth * (REGISTER_SIZE) <= 0x1FF)
-                tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0x3ff)));
-            else if (state.MaxStackDepth * (REGISTER_SIZE) <= 0x7FFF)
+            if (stackDepth * (REGISTER_SIZE) <= 0x1FF)
+                tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, (uint)((-(stackDepth * (REGISTER_SIZE))) & 0x3ff)));
+            else if (stackDepth * (REGISTER_SIZE) <= 0x7FFF)
             {
-                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(state.MaxStackDepth * (REGISTER_SIZE))) & 0xFFFF)));
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(stackDepth * (REGISTER_SIZE))) & 0xFFFF)));
                 tmplist.Add(new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0));
             }
             else
@@ -455,13 +453,15 @@ namespace SPEJIT
         /// </summary>
         private static List<SPEEmulator.OpCodes.Bases.Instruction> GenerateEpilouge(CompiledMethod state)
         {
-            List<SPEEmulator.OpCodes.Bases.Instruction> tmplist = new List<SPEEmulator.OpCodes.Bases.Instruction>(); 
-            
-            if (state.MaxStackDepth * REGISTER_SIZE <= 0x1FF)
-                tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, state.MaxStackDepth * REGISTER_SIZE));
-            else if (state.MaxStackDepth * REGISTER_SIZE <= 0x7FFF)
+            List<SPEEmulator.OpCodes.Bases.Instruction> tmplist = new List<SPEEmulator.OpCodes.Bases.Instruction>();
+
+            uint stackDepth = state.MaxStackDepth + 2;
+
+            if (stackDepth * REGISTER_SIZE <= 0x1FF)
+                tmplist.Add(new SPEEmulator.OpCodes.ai(_SP, _SP, stackDepth * REGISTER_SIZE));
+            else if (stackDepth * REGISTER_SIZE <= 0x7FFF)
             {
-                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, state.MaxStackDepth * (REGISTER_SIZE)));
+                tmplist.Add(new SPEEmulator.OpCodes.il(_TMP0, stackDepth * (REGISTER_SIZE)));
                 tmplist.Add(new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0));
             }
             else
