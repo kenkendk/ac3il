@@ -36,14 +36,24 @@ namespace SPEJIT
         public const int INSTRUCTION_SIZE = 4;
 
         /// <summary>
-        /// The number of bytes into the bootloader where execution should start
-        /// </summary>
-        private const uint BOOTLOADER_START_OFFSET = INSTRUCTION_SIZE * 4;
-
-        /// <summary>
         /// The first register used for local variables
         /// </summary>
         public const int _LV0 = 80;
+
+        /// <summary>
+        /// The size of the object table
+        /// </summary>
+        public const int OBJECT_TABLE_SIZE = 16;
+
+        /// <summary>
+        /// The offset of the type table
+        /// </summary>
+        public const int TYPE_TABLE_OFFSET = 32 + (OBJECT_TABLE_SIZE * 16);
+
+        /// <summary>
+        /// The offset for the first method
+        /// </summary>
+        public const int FIRST_METHOD_OFFSET = TYPE_TABLE_OFFSET + (OBJECT_TABLE_SIZE * 16);
 
         //ABI specification states that $75 to $79 are scratch registers
         public const uint _TMP0 = 75;
@@ -85,9 +95,10 @@ namespace SPEJIT
         {
             using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
             {
-                EmitInstructionStream(ms, assemblyOutput, methods);
+                uint bootloader_offset;
+                EmitInstructionStream(ms, assemblyOutput, methods, out bootloader_offset);
 
-                SPEEmulator.ELFReader.EmitELFHeader((uint)ms.Length, BOOTLOADER_START_OFFSET, outstream);
+                SPEEmulator.ELFReader.EmitELFHeader((uint)ms.Length, bootloader_offset, outstream);
                 
                 ms.Position = 0;
                 ms.CopyTo(outstream);
@@ -101,13 +112,35 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The methods to compile</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<AccCIL.IR.MethodEntry> methods)
+        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<AccCIL.IR.MethodEntry> methods, out uint bootloader_offset)
         {
             List<ICompiledMethod> cmps = new List<ICompiledMethod>();
             foreach (AccCIL.IR.MethodEntry me in methods)
                 cmps.Add(JIT(me));
 
-            EmitInstructionStream(outstream, assemblyOutput, cmps);
+            EmitInstructionStream(outstream, assemblyOutput, cmps, out bootloader_offset);
+        }
+
+
+        private static void InstructionsToBytes(IEnumerable<SPEEmulator.OpCodes.Bases.Instruction> ops, System.IO.Stream stream, System.IO.TextWriter assemblyOutput, Dictionary<long, List<Mono.Cecil.Cil.Instruction>> instructionOffsets)
+        {
+            foreach (SPEEmulator.OpCodes.Bases.Instruction i in ops) {
+                stream.Write(ReverseEndian(BitConverter.GetBytes(i.Value)), 0, 4);
+
+                if (assemblyOutput != null)
+                {
+                    long offset = stream.Position - 4;
+                    if (instructionOffsets != null)
+                    {
+                        List<Mono.Cecil.Cil.Instruction> ins;
+                        instructionOffsets.TryGetValue((int)offset / 4, out ins);
+                        if (ins != null)
+                            foreach(Mono.Cecil.Cil.Instruction c in ins)
+                                assemblyOutput.WriteLine("# " + c.OpCode.Code);
+                    }
+                    assemblyOutput.WriteLine(string.Format("0x{0:x4}: {1}", offset, i.ToString()));
+                }
+            }
         }
 
         /// <summary>
@@ -116,127 +149,193 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The compiled methods</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> _methods)
+        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> _methods, out uint bootloader_offset)
         {
-            //TODO: Not sure if the SPE always starts at address 0, or if the start offset can be specified
-            //Seems like all ELF files have a special ".init" section
-            List<SPEEmulator.OpCodes.Bases.Instruction> output = new List<SPEEmulator.OpCodes.Bases.Instruction>();
-            output.AddRange(BOOT_LOADER);
+            //The size allocated for bootloader and call handler
+            int BOOTLOADER_LENGTH = (BOOT_LOADER.Length + CALL_HANDLER.Length) * 4;
 
-            int callhandlerOffset = output.Count;
-            output.AddRange(CALL_HANDLER);
-
-            List<CompiledMethod> methods = new List<CompiledMethod>();
-            foreach (ICompiledMethod m in _methods)
-                methods.Add((CompiledMethod)m);
+            //Typecast list
+            List<CompiledMethod> methods = _methods.Select(x => (CompiledMethod)x).ToList();
 
             //Get a list of builtins
             Dictionary<string, Mono.Cecil.MethodDefinition> builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>(CompiledMethod.m_builtins);
 
+            //Add any built-in methods
             for(int i = 0; i < methods.Count; i++)
-            {
-                CompiledMethod cm = methods[i];
-
-                foreach (Mono.Cecil.MethodReference mr in cm.CalledMethods)
+                foreach (Mono.Cecil.MethodReference mr in methods[i].CalledMethods)
                     if (mr.DeclaringType.FullName == "SPEJIT.BuiltInMethods" && builtins.ContainsKey(mr.Name))
                     {
                         methods.Add((CompiledMethod)AccCIL.AccCIL.JIT(this, builtins[mr.Name]));
                         builtins.Remove(mr.Name);
                     }
-                            
-            }
 
-            //Gather all required constants
-            Dictionary<string, int> constants = new Dictionary<string, int>();
-            int constantIndex = 0;
-            foreach (CompiledMethod cm in methods)
-                foreach (string v in cm.Constants)
-                    if (!constants.ContainsKey(v))
-                        constants.Add(v, constantIndex++);
+            //Start building the binary header
+            int items_in_table = 1 + methods.Count;
 
-            //Patch the entry point adress
-            int entryfunctionOffset = output.Count;
-            ((SPEEmulator.OpCodes.brsl)output[callhandlerOffset - INSTRUCTION_OFFSET_FOR_MAIN_BRSL]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + INSTRUCTION_OFFSET_FOR_MAIN_BRSL);
+            //Write argument load area
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Reserved entry
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Argument count
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Argument value offset
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Reserved entry
 
-            //Before we emit the actual code, we need to patch all calls
-            Dictionary<Mono.Cecil.MethodReference, int> methodOffsets = new Dictionary<Mono.Cecil.MethodReference, int>();
+            //Write object table header
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)items_in_table)), 0, 4); //Number of elements in table
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)OBJECT_TABLE_SIZE)), 0, 4); //Size of table
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Reserved
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Reserved
 
-            int offset = output.Count;
-            foreach (CompiledMethod cm in methods)
+            int codeOffset = 32 + (OBJECT_TABLE_SIZE * 16);
+
+            //First entry, the bootloader
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)AccCIL.KnownObjectTypes.Bootloader)), 0, 4); //Type
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)BOOTLOADER_LENGTH)), 0, 4); //Size
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)codeOffset)), 0, 4); //Pointer
+            outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Typename pointer
+
+            codeOffset += BOOTLOADER_LENGTH;
+            codeOffset += (16 - BOOTLOADER_LENGTH % 16) % 16;
+
+            Dictionary<CompiledMethod, int> methodOffsets = new Dictionary<CompiledMethod,int>();
+            foreach(CompiledMethod cm in methods)
             {
-                methodOffsets.Add(cm.Method.Method, offset);
                 cm.Prolouge = GenerateProlouge(cm);
                 cm.Epilouge = GenerateEpilouge(cm);
-                offset += cm.Instructions.Count + cm.Prolouge.Count + cm.Epilouge.Count;
+
+                int codesize = cm.TotalSize;
+
+                outstream.Write(ReverseEndian(BitConverter.GetBytes((int)AccCIL.KnownObjectTypes.Code)), 0, 4); //Type
+                outstream.Write(ReverseEndian(BitConverter.GetBytes((int)codesize)), 0, 4); //Size
+                outstream.Write(ReverseEndian(BitConverter.GetBytes((int)codeOffset)), 0, 4); //Pointer
+                outstream.Write(ReverseEndian(BitConverter.GetBytes((int)codeOffset + cm.CodeSize)), 0, 4); //Typename pointer
+
+                methodOffsets.Add(cm, codeOffset);
+
+                codeOffset += codesize;
             }
 
-            
 
-            //Now that we know the layout of each method, we can patch the call instructions
+            //Fill with zeros for remaining entries in object table
+            byte[] zeroentry = new byte[16];
+            for (int i = 0; i < OBJECT_TABLE_SIZE - items_in_table; i++)
+                outstream.Write(zeroentry, 0, zeroentry.Length);
+
+            bootloader_offset = (uint)outstream.Length;
+
+            List<SPEEmulator.OpCodes.Bases.Instruction> tmp = new List<SPEEmulator.OpCodes.Bases.Instruction>();
+
+            tmp.AddRange(BOOT_LOADER);
+            int callhandlerOffset = tmp.Count;
+            tmp.AddRange(CALL_HANDLER);
+
+            //Patch the entry point adress
+            int entryfunctionOffset = tmp.Count + (4 - tmp.Count % 4) % 4;
+            ((SPEEmulator.OpCodes.brsl)tmp[callhandlerOffset - INSTRUCTION_OFFSET_FOR_MAIN_BRSL]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + INSTRUCTION_OFFSET_FOR_MAIN_BRSL);
+
+            if (assemblyOutput != null)
+                assemblyOutput.WriteLine("# Bootloader");
+
+            //Flush loader code
+            InstructionsToBytes(tmp, outstream, assemblyOutput, null);
+            outstream.Write(zeroentry, 0, (16 - BOOTLOADER_LENGTH % 16) % 16);
+
+            //Create a fast lookup table            
+            Dictionary<Mono.Cecil.MethodReference, int> methodOffsetLookup = methodOffsets.ToDictionary(x => (Mono.Cecil.MethodReference)x.Key.Method.Method, x => x.Value / 4);
+
+            //We know the layout of each method, we can patch the call instructions
             foreach (CompiledMethod cm in methods)
             {
+                List<string> constants = cm.Constants.Distinct().ToList();
+                Dictionary<string, int> offsets = new Dictionary<string, int>();
+
+                for(int i = 0; i < constants.Count; i++)
+                    offsets.Add(constants[i], i * 4);
+
+                if (assemblyOutput != null)
+                {
+                    assemblyOutput.WriteLine("###########################################");
+                    assemblyOutput.WriteLine("# Begin Function: " + cm.Method.Method.Name);
+                    assemblyOutput.WriteLine("###########################################");
+                    assemblyOutput.WriteLine();
+                }
+
+                int constantOffsets = cm.Instructions.Count + ((4 - (cm.Prolouge.Count + cm.Instructions.Count) % 4) % 4);
+
                 cm.PatchBranches();
-                cm.PatchCalls(methodOffsets, callhandlerOffset);
-            }
+                cm.PatchCalls(methodOffsetLookup, callhandlerOffset);
+                cm.PatchConstants(constantOffsets, offsets);
 
-            //Now gather all instructions
-            foreach (CompiledMethod cm in methods)
-            {
-                output.AddRange(cm.Prolouge);
-                output.AddRange(cm.Instructions);
-                output.AddRange(cm.Epilouge);
-            }
-
-            //Pad with nops to be 16 byte aligned
-            while (output.Count % 4 != 0)
-                output.Add(new SPEEmulator.OpCodes.nop());
-
-            //Now we know the size of the code area, so we can layout the constants
-            if (constants.Count > 0)
-            {
-                int constantOffset = output.Count;
-
-                foreach (CompiledMethod cm in methods)
-                    cm.PatchConstants(constantOffset - methodOffsets[cm.Method.Method] - cm.Prolouge.Count, constants);
-            }
+                int offset = (cm.Prolouge.Count + cm.Instructions.Count + cm.Epilouge.Count) * 4;
 
 
-            //All instructions are JIT'ed, so flush them as binary output
-            foreach (SPEEmulator.OpCodes.Bases.Instruction i in output)
-                outstream.Write(ReverseEndian(BitConverter.GetBytes(i.Value)), 0, 4);
+                if (assemblyOutput != null)
+                    assemblyOutput.WriteLine("### Prolouge Begin ###");
+                InstructionsToBytes(cm.Prolouge, outstream, assemblyOutput, null);
+                if (assemblyOutput != null)
+                    assemblyOutput.WriteLine("### Prolouge End ###");
+#if DEBUG
+                long streamOffset = outstream.Position / 4;
+                Dictionary<long, List<Mono.Cecil.Cil.Instruction>> instructionLookup = new Dictionary<long, List<Mono.Cecil.Cil.Instruction>>();
+                foreach (KeyValuePair<Mono.Cecil.Cil.Instruction, int> x in cm.InstructionOffsets)
+                {
+                    List<Mono.Cecil.Cil.Instruction> ix;
+                    instructionLookup.TryGetValue(x.Value + streamOffset, out ix);
+                    if (ix == null)
+                        instructionLookup.Add(x.Value + streamOffset, ix = new List<Mono.Cecil.Cil.Instruction>());
+                    ix.Add(x.Key);
+                }
+#else
+                Dictionary<int, List<Mono.Cecil.Cil.Instruction>> instructionLookup = null;
+#endif
 
-            if (constants.Count > 0)
-            {
-                SortedList<int, string> tmp = new SortedList<int,string>();
-                foreach (KeyValuePair<string, int> c in constants)
-                    tmp.Add(c.Value, c.Key);
+                InstructionsToBytes(cm.Instructions, outstream, assemblyOutput, instructionLookup);
+                if (assemblyOutput != null)
+                    assemblyOutput.WriteLine("### Epilouge Begin ###");
+                InstructionsToBytes(cm.Epilouge, outstream, assemblyOutput, null);
+                if (assemblyOutput != null)
+                    assemblyOutput.WriteLine("### Epilouge End ###");
 
-                foreach (string s in tmp.Values)
+                outstream.Write(zeroentry, 0, (16 - offset % 16) % 16);
+
+                foreach (string s in constants)
                 {
                     ulong high = ulong.Parse(s.Substring(0, 16), System.Globalization.NumberStyles.HexNumber);
                     ulong low = ulong.Parse(s.Substring(16), System.Globalization.NumberStyles.HexNumber);
 
                     outstream.Write(ReverseEndian(BitConverter.GetBytes(high)), 0, 8);
                     outstream.Write(ReverseEndian(BitConverter.GetBytes(low)), 0, 8);
+
+                    if (assemblyOutput != null)
+                        assemblyOutput.WriteLine("Constant: " + s);
+                }
+
+                outstream.Write(ReverseEndian(BitConverter.GetBytes((int)cm.FunctionName.Length)), 0, 4);
+                outstream.Write(cm.FunctionName, 0, cm.FunctionName.Length);
+
+                outstream.Write(zeroentry, 0, (16 - (cm.FunctionName.Length + 4) % 16) % 16);
+
+                if (assemblyOutput != null)
+                {
+                    assemblyOutput.WriteLine();
+                    assemblyOutput.WriteLine();
                 }
             }
 
             //If there is an assemblyStream present, write text representation
-            if (assemblyOutput != null)
+            /*if (assemblyOutput != null)
             {
                 offset = 0;
                 foreach (SPEEmulator.OpCodes.Bases.Instruction i in output)
                 {
-                    if (methodOffsets.ContainsValue(offset))
+                    if (methodOffsetLookup.ContainsValue(offset))
                     {
-                        foreach (KeyValuePair<Mono.Cecil.MethodReference, int> p in methodOffsets)
+                        foreach (KeyValuePair<Mono.Cecil.MethodReference, int> p in methodOffsetLookup)
                             if (p.Value == offset)
                                 assemblyOutput.WriteLine("# Function entry: " + p.Key.Name);
                     }
                     assemblyOutput.WriteLine((offset * 4).ToString("x4") + ": " + i.ToString());
                     offset++;
                 }
-            }
+            }*/
 
         }
 
@@ -251,11 +350,6 @@ namespace SPEJIT
         /// This contains a handwritten boot kernel that handles startup and call resolution
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] BOOT_LOADER = new SPEEmulator.OpCodes.Bases.Instruction[] {
-            new SPEEmulator.OpCodes.stop(), //First entry (0x0) is always set to 0, used for testing null pointer read/writes 
-            new SPEEmulator.OpCodes.stop(), //Second entry (0x4) is reserved for the argument count
-            new SPEEmulator.OpCodes.stop(), //Third entry (0x8) is reserved for the pointer to LS startup data
-            new SPEEmulator.OpCodes.stop(), //Fourth entry is reserved for padding
-
             //Start by setting up the the SP
             new SPEEmulator.OpCodes.xor(0, 0, 0), //Clear register $0
             new SPEEmulator.OpCodes.ila(_SP, (uint)(0x40000 - REGISTER_SIZE)), //Set SP to LS_SIZE - 16
@@ -371,7 +465,7 @@ namespace SPEJIT
             }
 
             //All remaining used registers must also be preserved
-            foreach (int i in usedRegs)
+            foreach (int i in usedRegs.Reverse<int>())
                 if (i > _LV0)
                     mapper.PushStack(new TemporaryRegister((uint)(i)));
 
@@ -470,6 +564,14 @@ namespace SPEJIT
             tmplist.Add(new SPEEmulator.OpCodes.lqd(_LR, _SP, 1));
             tmplist.Add(new SPEEmulator.OpCodes.bi(_LR, _LR));
 
+            int size = state.Prolouge.Count + state.Instructions.Count + tmplist.Count;
+
+            while (size % 4 != 0)
+            {
+                tmplist.Add(new SPEEmulator.OpCodes.nop());
+                size++;
+            }
+                
             return tmplist;
         }
 

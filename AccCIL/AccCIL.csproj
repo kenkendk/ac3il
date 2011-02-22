@@ -44,6 +44,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AccelleratorBase.cs" />
+    <Compile Include="Enumerations.cs" />
     <Compile Include="ICompiledMethod.cs" />
     <Compile Include="IJITCompiler.cs" />
     <Compile Include="IRegisterAllocator.cs" />
