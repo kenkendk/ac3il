@@ -250,8 +250,10 @@ namespace SPEJIT
                 List<string> constants = cm.Constants.Distinct().ToList();
                 Dictionary<string, int> offsets = new Dictionary<string, int>();
 
+
+                int constantOffsets = (cm.Instructions.Count + cm.Epilouge.Count) + (4 - (cm.Instructions.Count + cm.Prolouge.Count + cm.Epilouge.Count) % 4) % 4;
                 for(int i = 0; i < constants.Count; i++)
-                    offsets.Add(constants[i], i * 4);
+                    offsets.Add(constants[i], i * 4 + constantOffsets);
 
                 if (assemblyOutput != null)
                 {
@@ -261,11 +263,9 @@ namespace SPEJIT
                     assemblyOutput.WriteLine();
                 }
 
-                int constantOffsets = cm.Instructions.Count + ((4 - (cm.Prolouge.Count + cm.Instructions.Count) % 4) % 4);
-
                 cm.PatchBranches();
                 cm.PatchCalls(methodOffsetLookup, callhandlerOffset);
-                cm.PatchConstants(constantOffsets, offsets);
+                cm.PatchConstants(offsets);
 
                 int offset = (cm.Prolouge.Count + cm.Instructions.Count + cm.Epilouge.Count) * 4;
 

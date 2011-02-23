@@ -199,12 +199,12 @@ namespace SPEJIT
             } 
         }
 
-        public void PatchConstants(int constantOffset, Dictionary<string, int> offsets)
+        public void PatchConstants(Dictionary<string, int> offsets)
         {
             foreach (KeyValuePair<int, string> ko in m_constantLoads)
             {
                 if (m_instructionList[ko.Key] is SPEEmulator.OpCodes.lqr)
-                    ((SPEEmulator.OpCodes.lqr)m_instructionList[ko.Key]).I16 = ((uint)((constantOffset + (offsets[ko.Value])) - ko.Key)) & 0xffff;
+                    ((SPEEmulator.OpCodes.lqr)m_instructionList[ko.Key]).I16 = (uint)(offsets[ko.Value] - ko.Key) & 0xffff;
                 else
                     throw new Exception("Unexpected SPE instruction where a constant load should have been?");
             }
