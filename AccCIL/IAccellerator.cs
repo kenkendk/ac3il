@@ -5,8 +5,22 @@ using System.Text;
 
 namespace AccCIL
 {
+    /// <summary>
+    /// A delegate for filtering functions to accelerate
+    /// </summary>
+    /// <param name="initial">The initial accelerated function</param>
+    /// <param name="parent">The function that called the current function</param>
+    /// <param name="current">The function to evaluate for filtering</param>
+    /// <returns>True if the current function should be accelerated, false otherwise</returns>
+    public delegate bool FunctionFilterDelegate(Mono.Cecil.MethodReference initial, Mono.Cecil.MethodReference parent, Mono.Cecil.MethodReference current);
+
     public interface IAccellerator
     {
+        /// <summary>
+        /// Gets or sets the filter that is used to filter what functions to include when JIT compiling
+        /// </summary>
+        FunctionFilterDelegate FunctionFilter { get; set; }
+
         /// <summary>
         /// Prepares the accelerator by loading compiled methods and control code onto it
         /// </summary>
@@ -18,7 +32,7 @@ namespace AccCIL
         /// </summary>
         /// <param name="arguments">The arguments for the entry method</param>
         /// <returns>The result of running the method on the accelerator</returns>
-        object Execute(params object[] arguments);
+        T Execute<T>(params object[] arguments);
 
         void Accelerate(Action action);
         void Accelerate<InType1>(Action<InType1> action, InType1 arg1);

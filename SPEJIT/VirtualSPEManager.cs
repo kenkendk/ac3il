@@ -11,82 +11,51 @@ namespace SPEJIT
     /// </summary>
     public class VirtualSPEManager : AccCIL.AccelleratorBase
     {
+        private SPEJIT.SPEJITCompiler m_compiler = new SPEJITCompiler();
+        private string m_elf = null;
+
         public override void LoadProgram(IEnumerable<AccCIL.ICompiledMethod> methods)
         {
-            throw new NotImplementedException();
-        }
-
-        public override object Execute(params object[] arguments)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected override T DoAccelerate<T>(string assembly, string methodName, params object[] args)
-        {
-            // Create LS
-
-            // Compile code
             string startPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            string program = System.IO.Path.Combine(startPath, assembly);
+            string program = System.IO.Path.Combine(startPath, methods.First().Method.Method.DeclaringType.Module.Assembly.Name.Name);
 
-            SPEJIT.SPEJITCompiler compiler = new SPEJIT.SPEJITCompiler();
-            List<AccCIL.ICompiledMethod> methods = AccCIL.AccCIL.JIT(compiler, program);
-
-            // Find called method - Can this be done at an earlier state - perhaps the compiler.
-            // Does the compiler already do this?!
-            List<MethodReference> calledMethods = new List<MethodReference>();
-            calledMethods.Add(methods[methods.FindIndex(x => x.Method.Method.Name == methodName)].Method.Method);
-
-            // Find submethods
-            for (int i = 0; i < calledMethods.Count; i++)
-            {
-                int ix = methods.FindIndex(x => x.Method.Method.DeclaringType + "." + x.Method.Method.Name == calledMethods[i].DeclaringType.FullName + "." + calledMethods[i].Name);
-
-                // If ix is -1, the method is not found and therefor do not have any submethods -> continue
-                if (ix == -1)
-                    continue;
-
-                // Add all methods that does not already exist in calledMethods
-                foreach (MethodReference method in ((SPEJIT.CompiledMethod)(methods[ix])).CalledMethods)
-                {
-                    if (!calledMethods.Contains(method))
-                        calledMethods.Add(method);
-                }
-            }
-
-           
-            // Remove unused methods
-            for (int i = 0; i < methods.Count; i++)
-            {
-                if (calledMethods.FindIndex(x => x.DeclaringType.FullName + "." + x.Name == methods[i].Method.Method.DeclaringType.FullName + "." + methods[i].Method.Method.Name) == -1)
-                {
-                    methods.RemoveAt(i);
-                    i--;
-                }
-            }
-
+#if DEBUG
             // Create ELF
             string elffile = System.IO.Path.Combine(startPath, program + ".elf");
             using (System.IO.FileStream outfile = new System.IO.FileStream(elffile, System.IO.FileMode.Create))
             using (System.IO.TextWriter sw = new System.IO.StreamWriter(System.IO.Path.Combine(startPath, program + ".asm")))
             {
-                compiler.EmitELFStream(outfile, sw, methods);
+                m_compiler.EmitELFStream(outfile, sw, methods);
                 Console.WriteLine("Converted output size in bytes: " + outfile.Length);
             }
+#else
+            using (System.IO.FileStream outfile = new System.IO.FileStream(elffile, System.IO.FileMode.Create))
+                m_compiler.EmitELFStream(outfile, null, methods); 
+#endif
+            m_elf = elffile;
+        }
 
+        protected override AccCIL.IJITCompiler Compiler
+        {
+            get { return m_compiler; }
+        }
+
+
+        public override T Execute<T>(params object[] args)
+        {
             // Run program
-            SPEEmulatorTestApp.Simulator s = new SPEEmulatorTestApp.Simulator(new string[] { elffile });
+            SPEEmulatorTestApp.Simulator s = new SPEEmulatorTestApp.Simulator(new string[] { m_elf });
             s.StartAndPause();
 
             s.SPE.WriteLSWord(0, 0);
             s.SPE.WriteLSWord(4, (uint)args.Length);
 
-            uint lsoffset = (uint)s.SPE.LS.Length  - (16 * 8);
+            uint lsoffset = (uint)s.SPE.LS.Length - (16 * 8);
 
             for (int i = args.Length - 1; i >= 0; i--)
             {
-                lsoffset -= 16; 
-                
+                lsoffset -= 16;
+
                 if (args[i] is int || args[i] is uint || args[i] is short || args[i] is ushort || args[i] is byte || args[i] is sbyte)
                 {
                     s.SPE.WriteLSWord(lsoffset, (uint)Convert.ToInt32(args[i]));
@@ -147,5 +116,6 @@ namespace SPEJIT
             else
                 throw new Exception("Return type not supported: " + rtype.FullName);
         }
+
     }
 }

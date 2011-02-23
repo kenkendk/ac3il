@@ -160,10 +160,13 @@ namespace SPEJIT
             //Get a list of builtins
             Dictionary<string, Mono.Cecil.MethodDefinition> builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>(CompiledMethod.m_builtins);
 
+            //Get list of already compiled builtins
+            IDictionary<string, CompiledMethod> includedBuiltins = methods.Where(x => x.Method.Method.DeclaringType.FullName == "SPEJIT.BuiltInMethods").ToDictionary(x => x.Method.Method.Name);
+
             //Add any built-in methods
             for(int i = 0; i < methods.Count; i++)
                 foreach (Mono.Cecil.MethodReference mr in methods[i].CalledMethods)
-                    if (mr.DeclaringType.FullName == "SPEJIT.BuiltInMethods" && builtins.ContainsKey(mr.Name))
+                    if (mr.DeclaringType.FullName == "SPEJIT.BuiltInMethods" && builtins.ContainsKey(mr.Name) && !includedBuiltins.ContainsKey(mr.Name))
                     {
                         methods.Add((CompiledMethod)AccCIL.AccCIL.JIT(this, builtins[mr.Name]));
                         builtins.Remove(mr.Name);

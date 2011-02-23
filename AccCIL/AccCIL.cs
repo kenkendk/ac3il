@@ -8,22 +8,182 @@ namespace AccCIL
 {
     public class AccCIL
     {
+        private static object _cacheLock = new object();
+        private static Dictionary<string, AssemblyDefinition> _assemblyDefinitionCache = new Dictionary<string, AssemblyDefinition>();
+        private static Dictionary<AssemblyDefinition, Dictionary<string, List<MethodDefinition>>> _methodDefinitionCache = new Dictionary<AssemblyDefinition, Dictionary<string, List<MethodDefinition>>>();
 
+        public static AssemblyDefinition LoadAssemblyFile(string filename)
+        {
+            AssemblyDefinition asm;
+            string assemblyName = System.Reflection.Assembly.LoadFrom(filename).GetName().ToString();
+            lock (_cacheLock)
+            {
+                _assemblyDefinitionCache.TryGetValue(assemblyName, out asm);
+                if (asm == null)
+                    _assemblyDefinitionCache.Add(assemblyName, asm = AssemblyFactory.GetAssembly(System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName)).Location));
+            }
+
+            return asm;
+        }
+
+        public static string FindAssemblyName(MethodReference mr)
+        {
+            IMetadataScope scope = mr.DeclaringType.Scope;
+
+            if (scope is ModuleDefinition)
+                scope = (AssemblyNameReference)((ModuleDefinition)scope).Assembly.Name;
+            
+            if (scope is AssemblyNameReference)
+                return scope.ToString();
+            else
+                throw new Exception("Unexpected scope token: " + scope);
+        }
+
+        public static MethodDefinition FindMethod(MethodReference mr)
+        {
+            Type[] types = new Type[mr.Parameters.Count];
+            for (int i = 0; i < types.Length; i++)
+                types[i] = Type.GetType(mr.Parameters[i].ParameterType.FullName);
+
+            AssemblyDefinition asm;
+            string assemblyName = FindAssemblyName(mr);
+            lock (_cacheLock)
+            {
+                _assemblyDefinitionCache.TryGetValue(assemblyName, out asm);
+                if (asm == null)
+                    _assemblyDefinitionCache.Add(assemblyName, asm = AssemblyFactory.GetAssembly(System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName)).Location));
+            }
+
+            return FindMethod(asm, mr.DeclaringType.FullName + "." + mr.Name, types);
+        }
+
+        public static MethodDefinition FindMethod(AssemblyDefinition asm, string name, Type[] args)
+        {
+            Dictionary<string, List<MethodDefinition>> methodLookup;
+            lock (_cacheLock)
+            {
+                _methodDefinitionCache.TryGetValue(asm, out methodLookup);
+                if (methodLookup == null)
+                {
+                    methodLookup = new Dictionary<string, List<MethodDefinition>>();
+
+                    foreach (ModuleDefinition mod in asm.Modules)
+                        foreach (TypeDefinition tref in mod.Types)
+                            foreach (MethodDefinition mdef in tref.Methods)
+                            {
+                                string functioname = mdef.DeclaringType.FullName + "." + mdef.Name;
+                                List<MethodDefinition> lm;
+                                methodLookup.TryGetValue(functioname, out lm);
+                                if (lm == null)
+                                    methodLookup.Add(functioname, lm = new List<MethodDefinition>());
+                                lm.Add(mdef);
+                            }
+
+                    _methodDefinitionCache.Add(asm, methodLookup);
+                }
+            }
+
+            if (!methodLookup.ContainsKey(name))
+                return null;
+
+            foreach (MethodDefinition mdef in methodLookup[name])
+                if (mdef.Parameters.Count == args.Length)
+                {
+                    bool match = true;
+                    for (int i = 0; i < mdef.Parameters.Count; i++)
+                        match &= Type.GetType(mdef.Parameters[i].ParameterType.FullName).IsAssignableFrom(args[i]);
+
+                    if (match)
+                        return mdef;
+                }
+
+            return null;
+        }
+
+
+        /*public static List<ICompiledMethod> JIT(IJITCompiler compiler, string assemblyfile, string[] functionnames, FunctionFilterDelegate functionfilter)
+        {
+            if (functionfilter == null)
+                functionfilter = SameAssemblyFunctionFilter;
+
+            if (!System.IO.File.Exists(assemblyfile))
+                throw new Exception("Could not find program file: " + assemblyfile);
+
+            AssemblyDefinition asm = AssemblyFactory.GetAssembly(assemblyfile);
+            
+            //TODO: Should support function overloading
+            Dictionary<string, MethodDefinition> functionLookup = new Dictionary<string, MethodDefinition>();
+            foreach (ModuleDefinition mod in asm.Modules)
+                foreach (TypeDefinition tref in mod.Types)
+                    foreach (MethodDefinition mdef in tref.Methods)
+                        functionLookup.Add(mdef.DeclaringType.FullName + "." + mdef.Name, mdef);
+
+            Dictionary<MethodReference, string> visitedMethods = new Dictionary<MethodReference, string>();
+            List<ICompiledMethod> methods = new List<ICompiledMethod>();
+
+            Dictionary<Mono.Cecil.AssemblyDefinition, List<Mono.Cecil.MethodReference>> pendingWork = new Dictionary<AssemblyDefinition,List<MethodReference>>();
+
+            foreach (string name in functionnames)
+            {
+                if (!functionLookup.ContainsKey(name))
+                    throw new Exception("Unable to find function {0} in assembly {1}");
+
+                MethodDefinition mainfunction = functionLookup[name];
+                IR.MethodEntry m = BuildIRTree(mainfunction);
+                m.ResetVirtualRegisters();
+                methods.Add(compiler.JIT(m));
+                visitedMethods.Add(mainfunction, null);
+
+                var work = from x in m.FlatInstructionList
+                           let code = x.Instruction.OpCode.Code
+                           where code == Mono.Cecil.Cil.Code.Call || code == Mono.Cecil.Cil.Code.Calli || code == Mono.Cecil.Cil.Code.Callvirt
+                           select ((Mono.Cecil.MethodReference)x.Instruction.Operand);
+
+                foreach (MethodReference mdef in work)
+                {
+                    if (visitedMethods.ContainsKey(mdef))
+                        continue;
+
+                    visitedMethods.Add(mdef, null);
+
+                    if (!functionfilter(null, mainfunction, mdef))
+                        continue;
+
+
+                    List<Mono.Cecil.MethodReference> mr;
+                    pendingWork.TryGetValue(mdef.DeclaringType.Module.Assembly, out mr);
+                    if (mr == null)
+                        pendingWork.Add(mdef.DeclaringType.Module.Assembly, mr = new List<MethodReference>());
+                    mr.Add(mdef);
+                }
+
+            }
+
+            return methods;
+
+        }*/
+
+        /// <summary>
+        /// Function that compiles all functions in an assembly
+        /// </summary>
+        /// <param name="compiler">The compiler that will do the work</param>
+        /// <param name="assemblyfile">The assembly to compile all methods for</param>
+        /// <returns>A list of compiled methods</returns>
         public static List<ICompiledMethod> JIT(IJITCompiler compiler, string assemblyfile)
         {
             if (System.IO.File.Exists(assemblyfile))
             {
-                AssemblyDefinition asm = AssemblyFactory.GetAssembly(assemblyfile);
-                ModuleDefinition mod = asm.MainModule;
+                AssemblyDefinition asm = LoadAssemblyFile(assemblyfile);
 
                 List<ICompiledMethod> methods = new List<ICompiledMethod>();
-                foreach(TypeDefinition tref in mod.Types)
-                    foreach (MethodDefinition mdef in tref.Methods)
-                    {
-                        IR.MethodEntry root = BuildIRTree(mdef);
-                        root.ResetVirtualRegisters();
-                        methods.Add(compiler.JIT(root));
-                    }
+                foreach(ModuleDefinition mod in asm.Modules)
+                    foreach(TypeDefinition tref in mod.Types)
+                        foreach (MethodDefinition mdef in tref.Methods)
+                        {
+                            IR.MethodEntry root = BuildIRTree(mdef);
+                            root.ResetVirtualRegisters();
+                            methods.Add(compiler.JIT(root));
+                        }
 
                 return methods;
             }
@@ -31,6 +191,12 @@ namespace AccCIL
                 throw new Exception("Could not find program file: " + assemblyfile);
         }
 
+        /// <summary>
+        /// Compiles a single method
+        /// </summary>
+        /// <param name="compiler">The compiler that will do the work</param>
+        /// <param name="mdef">The method to compile</param>
+        /// <returns>The compiled method</returns>
         public static ICompiledMethod JIT(IJITCompiler compiler, Mono.Cecil.MethodDefinition mdef)
         {
             return compiler.JIT(BuildIRTree(mdef));
