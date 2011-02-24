@@ -8,8 +8,8 @@
     <ProjectGuid>{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GPUJIT</RootNamespace>
-    <AssemblyName>GPUJIT</AssemblyName>
+    <RootNamespace>CUDAJIT</RootNamespace>
+    <AssemblyName>CUDAJIT</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -46,10 +46,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="GPUManager.cs" />
-    <Compile Include="GPUOpCodeMapper.cs" />
+    <Compile Include="CUDAManager.cs" />
+    <Compile Include="CUDAOpCodeMapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="GPUJITCompiler.cs" />
+    <Compile Include="CUDAJITCompiler.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AccCIL\AccCIL.csproj">

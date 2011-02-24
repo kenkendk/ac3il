@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using Mono.Cecil;
 
-namespace GPUJIT
+namespace CUDAJIT
 {
-    public class GPUManager : AccCIL.AccelleratorBase
+    public class CUDAManager : AccCIL.AccelleratorBase
     {
-        private GPUJITCompiler m_compiler = new GPUJITCompiler();
+        private CUDAJITCompiler m_compiler = new CUDAJITCompiler();
         private string m_ptx = null;
         private string m_entryMethod;
 

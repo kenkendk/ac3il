@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using AccCIL;
 
-namespace GPUJIT
+namespace CUDAJIT
 {
-    class GPUJITCompiler : IJITCompiler
+    class CUDAJITCompiler : IJITCompiler
     {
         /// <summary>
         /// The list of all mappped CIL to SPE translations
@@ -16,7 +16,7 @@ namespace GPUJIT
         /// <summary>
         /// Static initializer for building instruction table based on reflection
         /// </summary>
-        static GPUJITCompiler()
+        static CUDAJITCompiler()
         {
             _opTranslations = BuildTranslationTable();
         }
@@ -26,7 +26,7 @@ namespace GPUJIT
             Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> res = new Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo>();
 
             Mono.Cecil.Cil.Code v;
-            foreach (System.Reflection.MethodInfo mi in typeof(GPUOpCodeMapper).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+            foreach (System.Reflection.MethodInfo mi in typeof(CUDAOpCodeMapper).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
                 if (Enum.TryParse<Mono.Cecil.Cil.Code>(mi.Name, true, out v))
                     res[v] = mi;
 

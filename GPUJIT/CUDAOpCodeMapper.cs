@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace GPUJIT
+namespace CUDAJIT
 {
-    internal class GPUOpCodeMapper
+    internal class CUDAOpCodeMapper
     {
     }
 }
