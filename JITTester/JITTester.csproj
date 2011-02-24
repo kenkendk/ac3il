@@ -68,6 +68,10 @@
       <Project>{2889D231-5459-4948-8044-7463D59BD975}</Project>
       <Name>CILFac</Name>
     </ProjectReference>
+    <ProjectReference Include="..\CUDAJIT\CUDAJIT.csproj">
+      <Project>{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}</Project>
+      <Name>CUDAJIT</Name>
+    </ProjectReference>
     <ProjectReference Include="..\SPEJIT\SPEJIT.csproj">
       <Project>{4EEE584A-B363-477D-AA89-602849551E1C}</Project>
       <Name>SPEJIT</Name>
