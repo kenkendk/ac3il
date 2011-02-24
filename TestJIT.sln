@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CILArray", "CILArray\CILArr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AccCIL", "AccCIL\AccCIL.csproj", "{448B4DFB-CC22-4D02-8FD9-877892457BA9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GPUJIT", "PTXJIT\GPUJIT.csproj", "{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -95,6 +97,16 @@ Global
 		{448B4DFB-CC22-4D02-8FD9-877892457BA9}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
 		{448B4DFB-CC22-4D02-8FD9-877892457BA9}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{448B4DFB-CC22-4D02-8FD9-877892457BA9}.Release|x86.ActiveCfg = Release|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|x86.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
