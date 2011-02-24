@@ -6,72 +6,52 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using Mono.Cecil;
 
-namespace PTXJIT
+namespace GPUJIT
 {
     public class GPUManager : AccCIL.AccelleratorBase
     {
+        private GPUJITCompiler m_compiler = new GPUJITCompiler();
+        private string m_ptx = null;
+        private string m_entryMethod;
+
+        public override void LoadProgram(IEnumerable<AccCIL.ICompiledMethod> methods)
+        {
+            string startPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            string program = System.IO.Path.Combine(startPath, methods.First().Method.Method.DeclaringType.Module.Assembly.Name.Name);
+
+            m_entryMethod = methods.FirstOrDefault().Method.Method.Name;
+#if DEBUG
+            // Create ELF
+            string ptxfile = System.IO.Path.Combine(startPath, program + ".ptx");
+            using (System.IO.FileStream outfile = new System.IO.FileStream(ptxfile, System.IO.FileMode.Create))
+            using (System.IO.TextWriter sw = new System.IO.StreamWriter(System.IO.Path.Combine(startPath, program + ".asm")))
+            {
+                //m_compiler.EmitELFStream(outfile, sw, methods);
+                Console.WriteLine("Converted output size in bytes: " + outfile.Length);
+            }
+#else
+            using (System.IO.FileStream outfile = new System.IO.FileStream(elffile, System.IO.FileMode.Create))
+                m_compiler.EmitELFStream(outfile, null, methods); 
+#endif
+            m_ptx = ptxfile;
+        }
+
         // Number of entries in vector
         static int N = 256;
         // Number of threads per block
         static int threadsPerBlock = 256;
-        // Path to module (PTX or CUBIN) to load
-        static string moduleName = "D:\\Dokumenter\\Visual Studio 2010\\Projects\\Sandkasse\\Sandkasse\\vector.ptx";
-        // Name of function to run
-        static string functionName = "VecAdd";
 
-        /// <summary>
-        /// Print GPU for primary card
-        /// </summary>
-        static void GPUstats()
+        public override T Execute<T>(params object[] args)
         {
-            GASS.CUDA.CUDA cuda = new GASS.CUDA.CUDA(0, true);
-
-            Console.WriteLine("Device \"{0}\"", cuda.CurrentDevice.Name);
-            Console.WriteLine("\tCUDA Capability Major revision number:\t\t{0}", cuda.CurrentDevice.ComputeCapability.Major);
-            Console.WriteLine("\tCUDA Capability Minor revision number:\t\t{0}", cuda.CurrentDevice.ComputeCapability.Minor);
-            Console.WriteLine("\tTotal amount of global memory:\t\t\t{0} bytes", cuda.CurrentDevice.TotalMemory);
-
-            Console.WriteLine("\tNumber of multiprocessors:\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MultiProcessorCount));
-            Console.WriteLine("\tNumber of cores:\t\t\t\t{0}\n", 8 * cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MultiProcessorCount));
-
-            Console.WriteLine("\tTotal amount of constant memory:\t\t{0}", cuda.CurrentDevice.Properties.TotalConstantMemory);
-            Console.WriteLine("\tTotal amount of shared memory per block:\t{0}", cuda.CurrentDevice.Properties.SharedMemoryPerBlock);
-            Console.WriteLine("\tTotal number of registers available per block:\t{0}", cuda.CurrentDevice.Properties.RegistersPerBlock);
-            Console.WriteLine("\tWarp size:\t\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.WarpSize));
-            Console.WriteLine("\tMaximum number of threads per block:\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxThreadsPerBlock));
-            Console.WriteLine("\tMaximum sizes of each dimension of a block:\t{0} x {1} x {2}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxBlockDimX), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxBlockDimY), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxBlockDimZ));
-            Console.WriteLine("\tMaximum sizes of each dimension of a grid:\t{0} x {1} x {2}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxGridDimX), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxGridDimY), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxGridDimZ));
-            Console.WriteLine("\tMaximum memory pitch:\t\t\t\t{0}", cuda.CurrentDevice.Properties.MemoryPitch);
-            Console.WriteLine("\tTexture alignment:\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.TextureAlignment));
-            Console.WriteLine("\tClock rate:\t\t\t\t\t{0} GHz\n", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.ClockRate) * 1e-6f);
-            Console.WriteLine("\tConcurrent copy and execution:\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.ConcurrentKernels) == 1 ? "Yes" : "No");
-            Console.WriteLine("\tRun time limit on kernels:\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.KernelExecTimeout) == 1 ? "Yes" : "No");
-            Console.WriteLine("\tIntegrated:\t\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.Integrated) == 1 ? "Yes" : "No");
-            Console.WriteLine("\tSupport host page-locked memory mapping:\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.CanMapHostMemory) == 1 ? "Yes" : "No");
-        }
-
-        protected override T DoAccelerate<T>(string assembly, string methodName, params object[] args)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void LoadProgram(IEnumerable<AccCIL.ICompiledMethod> methods)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override object Execute(params object[] arguments)
-        {
-            // Compile Code
-
-            // Create module (PTX)
+            if (string.IsNullOrEmpty(m_entryMethod))
+                throw new Exception("No method is loaded");
 
             // Create cuda context
             GASS.CUDA.CUDA cuda = new GASS.CUDA.CUDA(true);
 
             // Load module (PTX) and get function
-            GASS.CUDA.Types.CUmodule module = cuda.LoadModule(moduleName);
-            GASS.CUDA.Types.CUfunction func = cuda.GetModuleFunction(module, functionName);
+            GASS.CUDA.Types.CUmodule module = cuda.LoadModule(m_ptx);
+            GASS.CUDA.Types.CUfunction func = cuda.GetModuleFunction(module, m_entryMethod);
 
             // Create data
             float[] A = new float[N];
@@ -127,12 +107,43 @@ namespace PTXJIT
             cuda.Free(dB);
             cuda.Free(dC);
 
-            // Check result
-            for (int i = 0; i < N; i++)
-                if (A[i] + B[i] != C[i])
-                    throw new Exception("GPU failed to calculate the correct result!");
+            return default(T);
+        }
 
-            return null;
+        protected override AccCIL.IJITCompiler Compiler
+        {
+            get { return m_compiler; }
+        }
+
+        /// <summary>
+        /// Print GPU for primary card
+        /// </summary>
+        static void GPUstats()
+        {
+            GASS.CUDA.CUDA cuda = new GASS.CUDA.CUDA(0, true);
+
+            Console.WriteLine("Device \"{0}\"", cuda.CurrentDevice.Name);
+            Console.WriteLine("\tCUDA Capability Major revision number:\t\t{0}", cuda.CurrentDevice.ComputeCapability.Major);
+            Console.WriteLine("\tCUDA Capability Minor revision number:\t\t{0}", cuda.CurrentDevice.ComputeCapability.Minor);
+            Console.WriteLine("\tTotal amount of global memory:\t\t\t{0} bytes", cuda.CurrentDevice.TotalMemory);
+
+            Console.WriteLine("\tNumber of multiprocessors:\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MultiProcessorCount));
+            Console.WriteLine("\tNumber of cores:\t\t\t\t{0}\n", 8 * cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MultiProcessorCount));
+
+            Console.WriteLine("\tTotal amount of constant memory:\t\t{0}", cuda.CurrentDevice.Properties.TotalConstantMemory);
+            Console.WriteLine("\tTotal amount of shared memory per block:\t{0}", cuda.CurrentDevice.Properties.SharedMemoryPerBlock);
+            Console.WriteLine("\tTotal number of registers available per block:\t{0}", cuda.CurrentDevice.Properties.RegistersPerBlock);
+            Console.WriteLine("\tWarp size:\t\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.WarpSize));
+            Console.WriteLine("\tMaximum number of threads per block:\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxThreadsPerBlock));
+            Console.WriteLine("\tMaximum sizes of each dimension of a block:\t{0} x {1} x {2}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxBlockDimX), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxBlockDimY), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxBlockDimZ));
+            Console.WriteLine("\tMaximum sizes of each dimension of a grid:\t{0} x {1} x {2}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxGridDimX), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxGridDimY), cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.MaxGridDimZ));
+            Console.WriteLine("\tMaximum memory pitch:\t\t\t\t{0}", cuda.CurrentDevice.Properties.MemoryPitch);
+            Console.WriteLine("\tTexture alignment:\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.TextureAlignment));
+            Console.WriteLine("\tClock rate:\t\t\t\t\t{0} GHz\n", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.ClockRate) * 1e-6f);
+            Console.WriteLine("\tConcurrent copy and execution:\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.ConcurrentKernels) == 1 ? "Yes" : "No");
+            Console.WriteLine("\tRun time limit on kernels:\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.KernelExecTimeout) == 1 ? "Yes" : "No");
+            Console.WriteLine("\tIntegrated:\t\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.Integrated) == 1 ? "Yes" : "No");
+            Console.WriteLine("\tSupport host page-locked memory mapping:\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.CanMapHostMemory) == 1 ? "Yes" : "No");
         }
     }
 }
