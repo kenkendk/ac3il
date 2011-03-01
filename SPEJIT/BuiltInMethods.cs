@@ -32,5 +32,36 @@ namespace SPEJIT
 
             return r;
         }
+
+        /// <summary>
+        /// Gets the size factor of an array element as a factor of two.
+        /// i.e. the element size is 2^n where n is the returned value
+        /// </summary>
+        /// <param name="objtype">The array element type</param>
+        /// <returns>The size of the array element as a factor of two</returns>
+        internal static uint get_array_elem_len_mult(AccCIL.KnownObjectTypes objtype)
+        {
+            switch (objtype)
+            {
+                case AccCIL.KnownObjectTypes.Boolean:
+                case AccCIL.KnownObjectTypes.Byte:
+                case AccCIL.KnownObjectTypes.SByte:
+                    return 0;
+                case AccCIL.KnownObjectTypes.Short:
+                case AccCIL.KnownObjectTypes.UShort:
+                    return 1;
+                case AccCIL.KnownObjectTypes.Int:
+                case AccCIL.KnownObjectTypes.UInt:
+                case AccCIL.KnownObjectTypes.Float:
+                    return 2;
+                case AccCIL.KnownObjectTypes.Long:
+                case AccCIL.KnownObjectTypes.ULong:
+                case AccCIL.KnownObjectTypes.Double:
+                    return 3;
+                default:
+                    //TODO: Throw exception?
+                    return 0;
+            }
+        }
     }
 }

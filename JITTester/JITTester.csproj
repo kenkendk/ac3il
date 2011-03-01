@@ -64,6 +64,10 @@
       <Project>{448B4DFB-CC22-4D02-8FD9-877892457BA9}</Project>
       <Name>AccCIL</Name>
     </ProjectReference>
+    <ProjectReference Include="..\CILArray\CILArray.csproj">
+      <Project>{3061D287-F87A-46F3-BE9E-F5E9107EA8CA}</Project>
+      <Name>CILArray</Name>
+    </ProjectReference>
     <ProjectReference Include="..\CILFac\CILFac.csproj">
       <Project>{2889D231-5459-4948-8044-7463D59BD975}</Project>
       <Name>CILFac</Name>

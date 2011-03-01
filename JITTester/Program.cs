@@ -91,14 +91,74 @@ namespace JITTester
 
             try
             {
-                AccCIL.IAccellerator virtualSPE = new SPEJIT.VirtualSPEManager();
-                long result = virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
+                AccCIL.IAccellerator virtualSPE = new SPEJIT.CellSPEEmulatorAccelerator();
+                //long result = virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
                 //virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
+                //var test = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+                //var sum = virtualSPE.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, test, 4);
+
+                TestSuite();
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }
+        }
+
+        public static void TestSuite()
+        {
+            AccCIL.IAccellerator virtualSPE = new SPEJIT.CellSPEEmulatorAccelerator();
+            ((SPEJIT.CellSPEEmulatorAccelerator)virtualSPE).ShowGUI = false;
+
+            var bytes = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            var sbytes = new sbyte[] { 0, -1, 2, -3, 4, -5, 6, -7, 8, -9 };
+            var shorts = new short[] { 0, -1, 2, -3, 4, -5, 6, -7, 8, -9 }; ;
+            var ushorts = new ushort[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            var ints = new int[] { 0, -1, 2, -3, 4, -5, 6, -7, 8, -9 }; ;
+            var uints = new uint[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            var longs = new long[] { 0, -1, 2, -3, 4, -5, 6, -7, 8, -9 }; ;
+            var ulongs = new ulong[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            var floats = new float[] { 0, -1, 2, -3, 4, -5, 6, -7, 8, -9 }; ;
+            var doubles = new double[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+            long result = virtualSPE.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
+            if (result != CILFac.Fac.Factorial(10))
+                throw new Exception("Failed to run fac");
+
+
+            var bytesum = virtualSPE.Accelerate<byte[], byte>(CILArray.ArrayTest.sum, bytes);
+            if (bytesum != CILArray.ArrayTest.sum(bytes))
+                throw new Exception("Sum of bytes failed");
+
+            var sbytesum = virtualSPE.Accelerate<sbyte[], sbyte>(CILArray.ArrayTest.sum, sbytes);
+            if (sbytesum != CILArray.ArrayTest.sum(sbytes))
+                throw new Exception("Sum of sbytes failed");
+            
+            var shortsum = virtualSPE.Accelerate<short[], short>(CILArray.ArrayTest.sum, shorts);
+            if (shortsum != CILArray.ArrayTest.sum(shorts))
+                throw new Exception("Sum of shorts failed");
+
+            var ushortsum = virtualSPE.Accelerate<ushort[], ushort>(CILArray.ArrayTest.sum, ushorts);
+            if (ushortsum != CILArray.ArrayTest.sum(ushorts))
+                throw new Exception("Sum of ushorts failed");
+
+            var intsum = virtualSPE.Accelerate<int[], int>(CILArray.ArrayTest.sum, ints);
+            if (intsum != CILArray.ArrayTest.sum(ints))
+                throw new Exception("Sum of ints failed");
+
+            var uintsum = virtualSPE.Accelerate<uint[], uint>(CILArray.ArrayTest.sum, uints);
+            if (uintsum != CILArray.ArrayTest.sum(uints))
+                throw new Exception("Sum of uints failed");
+
+
+            var longsum = virtualSPE.Accelerate<long[], long>(CILArray.ArrayTest.sum, longs);
+            if (longsum != CILArray.ArrayTest.sum(longs))
+                throw new Exception("Sum of longs failed");
+
+            var ulongsum = virtualSPE.Accelerate<ulong[], ulong>(CILArray.ArrayTest.sum, ulongs);
+            if (ulongsum != CILArray.ArrayTest.sum(ulongs))
+                throw new Exception("Sum of ulongs failed");
+
         }
 
         /// <summary>

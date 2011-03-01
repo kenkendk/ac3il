@@ -8,7 +8,7 @@ namespace SPEJIT
     /// <summary>
     /// Implementation of an SPE controller for a physical SPE device
     /// </summary>
-    class CellSPEManager : AccCIL.AccelleratorBase
+    class CellSPEAccelerator : AccCIL.AccelleratorBase
     {
         private SPEJIT.SPEJITCompiler m_compiler = new SPEJITCompiler();
 

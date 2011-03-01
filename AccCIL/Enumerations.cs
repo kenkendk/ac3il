@@ -10,6 +10,7 @@ namespace AccCIL
     /// </summary>
     public enum KnownObjectTypes : int
     {
+        Boolean,
         Byte,
         SByte,
         Short,

@@ -91,7 +91,7 @@ namespace AccCIL
                 {
                     bool match = true;
                     for (int i = 0; i < mdef.Parameters.Count; i++)
-                        match &= Type.GetType(mdef.Parameters[i].ParameterType.FullName).IsAssignableFrom(args[i]);
+                        match &= Type.GetType(mdef.Parameters[i].ParameterType.FullName) == args[i];
 
                     if (match)
                         return mdef;
@@ -181,7 +181,6 @@ namespace AccCIL
                         foreach (MethodDefinition mdef in tref.Methods)
                         {
                             IR.MethodEntry root = BuildIRTree(mdef);
-                            root.ResetVirtualRegisters();
                             methods.Add(compiler.JIT(root));
                         }
 
@@ -200,6 +199,44 @@ namespace AccCIL
         public static ICompiledMethod JIT(IJITCompiler compiler, Mono.Cecil.MethodDefinition mdef)
         {
             return compiler.JIT(BuildIRTree(mdef));
+        }
+
+        /// <summary>
+        /// Gets the number of elements that the instruction pops
+        /// </summary>
+        /// <param name="i">The instruction to examine</param>
+        /// <returns>The number of elements poped</returns>
+        public static int NumberOfElementsPoped(IR.InstructionElement i)
+        {
+            if (i.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Ret)
+            {
+                if (i.ParentMethod.ReturnType.ReturnType.FullName == "System.Void")
+                    return 0;
+                else
+                    return 1;
+            }
+            return NumberOfElementsPoped(i.Instruction.OpCode.StackBehaviourPop, i.Instruction.Operand);
+        }
+
+        /// <summary>
+        /// Gets the number of elements that the instruction pushes
+        /// </summary>
+        /// <param name="i">The instruction to examine</param>
+        /// <returns>The number of elements pushed</returns>
+        public static int NumberOfElementsPushed(IR.InstructionElement i)
+        {
+            return NumberOfElementsPushed(i.Instruction.OpCode.StackBehaviourPush, i.Instruction.Operand);
+        }
+
+        /// <summary>
+        /// Gets the number of elements the stack changes after the instruction.
+        /// If the instruction only pops elements, this number will be negative.
+        /// </summary>
+        /// <param name="i">The instruction to examine</param>
+        /// <returns>The size of the stack change</returns>
+        public static int StackChangeCount(IR.InstructionElement i)
+        {
+            return NumberOfElementsPushed(i) - NumberOfElementsPoped(i);
         }
 
         private static int NumberOfElementsPoped(Mono.Cecil.Cil.StackBehaviour s, object operand = null)
@@ -296,13 +333,48 @@ namespace AccCIL
                     roots.Add(new IR.InstructionElement(mdef, childnodes, x));
                 }
                 else
-                    stack.Push(new IR.InstructionElement(mdef, childnodes, x));
+                {
+                    IR.InstructionElement ins = new IR.InstructionElement(mdef, childnodes, x);
+                    for(int i = 0; i < elementsPushed; i++)
+                        stack.Push(ins);
+                }
             }
 
             if (stack.Count != 0)
                 throw new InvalidProgramException();
 
-            return new IR.MethodEntry(mdef) { Childnodes = roots.ToArray() };
+            IR.MethodEntry m = new IR.MethodEntry(mdef) { Childnodes = roots.ToArray() };
+            m.ResetVirtualRegisters();
+            return m;
+        }
+
+        public static KnownObjectTypes GetObjType(Type t)
+        {
+            if (t == typeof(bool))
+                return KnownObjectTypes.Boolean;
+            else if (t == typeof(byte))
+                return KnownObjectTypes.Byte;
+            else if (t == typeof(sbyte))
+                return KnownObjectTypes.SByte;
+            else if (t == typeof(short))
+                return KnownObjectTypes.Short;
+            else if (t == typeof(ushort))
+                return KnownObjectTypes.UShort;
+            else if (t == typeof(int))
+                return KnownObjectTypes.Int;
+            else if (t == typeof(uint))
+                return KnownObjectTypes.UInt;
+            else if (t == typeof(long))
+                return KnownObjectTypes.Long;
+            else if (t == typeof(ulong))
+                return KnownObjectTypes.ULong;
+            else if (t == typeof(float))
+                return KnownObjectTypes.Float;
+            else if (t == typeof(double))
+                return KnownObjectTypes.Double;
+            else
+                throw new Exception("Unsupported type: " + t.FullName);
+
         }
     }
 }

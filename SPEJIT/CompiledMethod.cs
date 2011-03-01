@@ -136,7 +136,15 @@ namespace SPEJIT
             m_maxStackDepth = Math.Max(m_maxStackDepth, m_stackDepth);
         }
 
+        /// <summary>
+        /// Gets the execution size of the stack, that is without any register optimized stack elements
+        /// </summary>
         public int StackDepth { get { return m_stackDepth; } }
+
+        /// <summary>
+        /// Gets the virtual size of the stack, that is the stack size as the VM sees it
+        /// </summary>
+        public int VirtualStackDepth { get { return m_stack.Count; } }
 
         public uint MaxStackDepth
         {
@@ -157,7 +165,8 @@ namespace SPEJIT
 
         public void StartInstruction(Mono.Cecil.Cil.Instruction instr)
         {
-            m_instructionOffsets.Add(instr, m_instructionList.Count);
+            if (!m_instructionOffsets.ContainsKey(instr))
+                m_instructionOffsets.Add(instr, m_instructionList.Count);
         }
 
         public void EndInstruction()

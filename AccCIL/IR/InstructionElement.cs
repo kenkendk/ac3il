@@ -47,6 +47,11 @@ namespace AccCIL.IR
         public VirtualRegister Register;
 
         /// <summary>
+        /// The assigned virtual output register for the Dup operation
+        /// </summary>
+        public VirtualRegister DupRegister;
+
+        /// <summary>
         /// The IR.InstructionElement that consumes the output of this operand
         /// </summary>
         public InstructionElement Parent;
@@ -59,6 +64,8 @@ namespace AccCIL.IR
         //TODO: Consider using the Mono.Cecil.TypeReference instead
         public Type ReturnType;
         public bool IsReturnTypeRef;
+
+        public bool IsIndexChecked = false;
 
         public Type StorageClass
         {
@@ -157,17 +164,24 @@ namespace AccCIL.IR
                             ReturnType = Childnodes[0].ReturnType;
                             break;
 
+                        case Mono.Cecil.Cil.Code.Ldobj:
+                            if (!Childnodes[0].IsReturnTypeRef)
+                                throw new Exception("Ldobj from something that is not an array?");
+
+                            ReturnType = Childnodes[0].ReturnType;
+                            IsReturnTypeRef = false;
+                            break;
+
                         //These are not fixed yet
                         case Mono.Cecil.Cil.Code.Mkrefany:
                         case Mono.Cecil.Cil.Code.Unbox_Any:
                         case Mono.Cecil.Cil.Code.Ldelem_Any:
                         case Mono.Cecil.Cil.Code.Ldsfld:
                         case Mono.Cecil.Cil.Code.Ldfld:
-                        case Mono.Cecil.Cil.Code.Ldobj:
-                            throw new Exception("The opcode is not supported");
+                            throw new Exception("The opcode is not supported for Push1: " + Instruction.OpCode.Code);
 
                         default:
-                            throw new Exception("Unexpected Push1 operation");
+                            throw new Exception("Unexpected Push1 operation: " + Instruction.OpCode.Code);
                     }
                     break;
                 case Mono.Cecil.Cil.StackBehaviour.Push1_push1:
@@ -178,7 +192,88 @@ namespace AccCIL.IR
                     break;
                 case Mono.Cecil.Cil.StackBehaviour.Pushi:
                     //This can actually also be an adress
-                    ReturnType = typeof(int);
+                    switch (Instruction.OpCode.Code)
+                    {
+                        case Mono.Cecil.Cil.Code.Ldelema:
+                            if (!Childnodes[0].ReturnType.IsArray)
+                                throw new Exception("Ldelem a for type which is not an array: " + Childnodes[0].ReturnType.FullName);
+
+                            ReturnType = Childnodes[0].ReturnType.GetElementType();
+                            IsReturnTypeRef = true;
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldc_I4:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_0:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_1:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_2:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_3:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_4:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_5:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_6:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_7:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_8:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_M1:
+                        case Mono.Cecil.Cil.Code.Ldc_I4_S:
+                        case Mono.Cecil.Cil.Code.Ldlen:
+                        case Mono.Cecil.Cil.Code.Conv_I1:
+                        case Mono.Cecil.Cil.Code.Conv_I2:
+                        case Mono.Cecil.Cil.Code.Conv_I4:
+                        case Mono.Cecil.Cil.Code.Conv_U4:
+                        case Mono.Cecil.Cil.Code.Isinst:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_I1:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_I2:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_I4:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_U1:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_U2:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_U4:
+                        case Mono.Cecil.Cil.Code.Refanyval:
+                        case Mono.Cecil.Cil.Code.Ldtoken:
+                        case Mono.Cecil.Cil.Code.Conv_U1:
+                        case Mono.Cecil.Cil.Code.Conv_U2:
+                        case Mono.Cecil.Cil.Code.Conv_I:
+                        case Mono.Cecil.Cil.Code.Conv_U:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_I:
+                        case Mono.Cecil.Cil.Code.Conv_Ovf_U:
+                        case Mono.Cecil.Cil.Code.Arglist:
+                        case Mono.Cecil.Cil.Code.Ceq:
+                        case Mono.Cecil.Cil.Code.Cgt:
+                        case Mono.Cecil.Cil.Code.Cgt_Un:
+                        case Mono.Cecil.Cil.Code.Clt:
+                        case Mono.Cecil.Cil.Code.Clt_Un:
+                        case Mono.Cecil.Cil.Code.Sizeof:
+                        case Mono.Cecil.Cil.Code.Refanytype:
+                        case Mono.Cecil.Cil.Code.Ldelem_I:
+                        case Mono.Cecil.Cil.Code.Ldelem_I4:
+                            ReturnType = typeof(int);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_I1:
+                            ReturnType = typeof(sbyte);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_I2:
+                            ReturnType = typeof(short);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_I8:
+                            ReturnType = typeof(long);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_R4:
+                            ReturnType = typeof(float);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_R8:
+                            ReturnType = typeof(double);
+                            break;
+
+                        case Mono.Cecil.Cil.Code.Ldelem_U1:
+                            ReturnType = typeof(byte);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_U2:
+                            ReturnType = typeof(ushort);
+                            break;
+                        case Mono.Cecil.Cil.Code.Ldelem_U4:
+                            ReturnType = typeof(uint);
+                            break;
+                        default:
+                            throw new Exception("Unexpected Pushi instruction: " + Instruction.OpCode.Code);
+                    }
+
                     break;
                 case Mono.Cecil.Cil.StackBehaviour.Pushi8:
                     /*switch (instruction.OpCode.Code)
@@ -292,9 +387,15 @@ namespace AccCIL.IR
             type = Type.GetType(typeName);
 
             if (type == null)
-                type = Type.GetType(typeName + ", " + operand.DeclaringType.Module.Assembly.Name.ToString(), true);
+                //TODO: Not correct, the module refers to current module, not the declaring type's module
+                type = Type.GetType(typeName + ", " + operand.DeclaringType.Module.Assembly.Name.ToString(), true); 
 
             return type;
+        }
+
+        public override string ToString()
+        {
+            return Instruction.OpCode.ToString();
         }
     }
 }

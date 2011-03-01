@@ -41,6 +41,11 @@ namespace SPEJIT
         public const int _LV0 = 80;
 
         /// <summary>
+        /// The offset in the LS in bytes where the object table starts
+        /// </summary>
+        public const int OBJECT_TABLE_OFFSET = 32;
+
+        /// <summary>
         /// The size of the object table
         /// </summary>
         public const int OBJECT_TABLE_SIZE = 16;
@@ -71,6 +76,16 @@ namespace SPEJIT
         /// The max number of local variable registers
         /// </summary>
         public const int MAX_LV_REGISTERS = 127 - 80;
+
+        /// <summary>
+        /// The stop value that indicates successfull execution
+        /// </summary>
+        public const uint STOP_SUCCESSFULL = 0x2110;
+
+        /// <summary>
+        /// The stop value that indicates that a method was being invoked that was not loaded on the SPE
+        /// </summary>
+        public const uint STOP_METHOD_CALL = 0x2111;
 
         /// <summary>
         /// The list of all mappped CIL to SPE translations
@@ -287,7 +302,7 @@ namespace SPEJIT
                     ix.Add(x.Key);
                 }
 #else
-                Dictionary<int, List<Mono.Cecil.Cil.Instruction>> instructionLookup = null;
+                Dictionary<long, List<Mono.Cecil.Cil.Instruction>> instructionLookup = null;
 #endif
 
                 InstructionsToBytes(cm.Instructions, outstream, assemblyOutput, instructionLookup);
@@ -415,7 +430,7 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.brsl(_LR, 0xffff), //Jump to entry
             new SPEEmulator.OpCodes.xor(_TMP0, _TMP0, _TMP0), //Clear a pointer
             new SPEEmulator.OpCodes.stqd(_ARG0, _TMP0, 0x0), //Copy the return value to position 0x0
-            new SPEEmulator.OpCodes.stop(0x3000)
+            new SPEEmulator.OpCodes.stop(STOP_SUCCESSFULL)
         };
 
         /// <summary>
@@ -429,7 +444,7 @@ namespace SPEJIT
         /// All function calls are routed through this, and it uses the PPE to resolve the actual call address
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] CALL_HANDLER = new SPEEmulator.OpCodes.Bases.Instruction[] {
-            new SPEEmulator.OpCodes.stop(0x3010) //TODO: Make it actually work
+            new SPEEmulator.OpCodes.stop(STOP_METHOD_CALL) //TODO: Make it actually work
 
             //To get this working, there should be a table in memory with the current
             // methods loaded and the call instructions
@@ -486,11 +501,16 @@ namespace SPEJIT
             //Now add each parsed subtree
             foreach (AccCIL.IR.InstructionElement el in method.Childnodes)
             {
-                RecursiveTranslate(state, mapper, el);
+                System.Diagnostics.Debug.Assert(state.VirtualStackDepth == requiredStackDepth);
+                RecursiveTranslate(state, mapper, el, new Dictionary<AccCIL.IR.InstructionElement,string>());
+                System.Diagnostics.Debug.Assert(state.VirtualStackDepth == requiredStackDepth);
+
                 System.Diagnostics.Trace.Assert(state.StackDepth >= requiredStackDepth);
             }
 
             state.EndFunction();
+
+            System.Diagnostics.Trace.Assert(state.StackDepth == requiredStackDepth);
 
             //All used registers must be preserved
             foreach (int i in usedRegs)
@@ -578,11 +598,20 @@ namespace SPEJIT
             return tmplist;
         }
 
-        private static void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, AccCIL.IR.InstructionElement el)
+        private static void RecursiveTranslate(CompiledMethod state, SPEOpCodeMapper mapper, AccCIL.IR.InstructionElement el, Dictionary<AccCIL.IR.InstructionElement, string> compiled)
         {
-            foreach (AccCIL.IR.InstructionElement els in el.Childnodes)
-                RecursiveTranslate(state, mapper, els);
+            if (compiled.ContainsKey(el))
+            {
+                System.Diagnostics.Debug.Assert(el.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Dup);
+                return;
+            }
 
+            compiled.Add(el, null);
+
+            foreach (AccCIL.IR.InstructionElement els in el.Childnodes)
+                RecursiveTranslate(state, mapper, els, compiled);
+
+            int stackdepth = state.VirtualStackDepth;
             System.Reflection.MethodInfo translator;
             if (!_opTranslations.TryGetValue(el.Instruction.OpCode.Code, out translator))
                 throw new Exception(string.Format("Missing a translator for CIL code {0}", el.Instruction.OpCode.Code));
@@ -590,6 +619,9 @@ namespace SPEJIT
             state.StartInstruction(el.Instruction);
             translator.Invoke(mapper, new object[] { el });
             state.EndInstruction();
+
+            //Verify that the instruction handler managed to handle the stack
+            System.Diagnostics.Debug.Assert(state.VirtualStackDepth == stackdepth + AccCIL.AccCIL.StackChangeCount(el));
         }
 
         private static Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> BuildTranslationTable()
