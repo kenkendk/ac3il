@@ -117,7 +117,7 @@ namespace SPEJIT
         public ulong ReadULong()
         {
             ulong l = ReadULong(m_position);
-            m_position += 4;
+            m_position += 8;
             return l;
         }
 

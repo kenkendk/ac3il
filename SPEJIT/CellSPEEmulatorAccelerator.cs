@@ -347,7 +347,7 @@ namespace SPEJIT
                         results = new ushort[arraysize / elementsize];
                         break;
                     case "System.Int16":
-                        objtype = AccCIL.KnownObjectTypes.UShort;
+                        objtype = AccCIL.KnownObjectTypes.Short;
                         elementsize = 2;
                         results = new short[arraysize / elementsize];
                         break;

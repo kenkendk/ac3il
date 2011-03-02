@@ -150,7 +150,6 @@ namespace JITTester
             if (uintsum != CILArray.ArrayTest.sum(uints))
                 throw new Exception("Sum of uints failed");
 
-
             var longsum = virtualSPE.Accelerate<long[], long>(CILArray.ArrayTest.sum, longs);
             if (longsum != CILArray.ArrayTest.sum(longs))
                 throw new Exception("Sum of longs failed");
@@ -159,7 +158,57 @@ namespace JITTester
             if (ulongsum != CILArray.ArrayTest.sum(ulongs))
                 throw new Exception("Sum of ulongs failed");
 
+            var floatsum = virtualSPE.Accelerate<float[], float>(CILArray.ArrayTest.sum, floats);
+            if (floatsum != CILArray.ArrayTest.sum(floats))
+                throw new Exception("Sum of floats failed");
+
+            var doublesum = virtualSPE.Accelerate<double[], double>(CILArray.ArrayTest.sum, doubles);
+            if (doublesum != CILArray.ArrayTest.sum(doubles))
+                throw new Exception("Sum of doubles failed");
+
+            var outbytes = virtualSPE.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, bytes, 4);
+            CILArray.ArrayTest.mult(bytes, 4);
+            for (int i = 0; i < bytes.Length; i++) if (bytes[i] != outbytes[i]) throw new Exception("Error in byte multiply");
+
+            var outsbytes = virtualSPE.Accelerate<sbyte[], sbyte, sbyte[]>(CILArray.ArrayTest.mult, sbytes, 4);
+            CILArray.ArrayTest.mult(sbytes, 4);
+            for (int i = 0; i < sbytes.Length; i++) if (sbytes[i] != outsbytes[i]) throw new Exception("Error in sbyte multiply");
+
+            var outshorts = virtualSPE.Accelerate<short[], short, short[]>(CILArray.ArrayTest.mult, shorts, 4);
+            CILArray.ArrayTest.mult(shorts, 4);
+            for (int i = 0; i < shorts.Length; i++) if (shorts[i] != outshorts[i]) throw new Exception("Error in short multiply");
+
+            var outushorts = virtualSPE.Accelerate<ushort[], ushort, ushort[]>(CILArray.ArrayTest.mult, ushorts, 4);
+            CILArray.ArrayTest.mult(ushorts, 4);
+            for (int i = 0; i < ushorts.Length; i++) if (ushorts[i] != outushorts[i]) throw new Exception("Error in ushort multiply");
+
+            var outints = virtualSPE.Accelerate<int[], int, int[]>(CILArray.ArrayTest.mult, ints, 4);
+            CILArray.ArrayTest.mult(ints, 4);
+            for (int i = 0; i < ints.Length; i++) if (ints[i] != outints[i]) throw new Exception("Error in int multiply");
+
+            var outuints = virtualSPE.Accelerate<uint[], uint, uint[]>(CILArray.ArrayTest.mult, uints, 4);
+            CILArray.ArrayTest.mult(uints, 4);
+            for (int i = 0; i < uints.Length; i++) if (uints[i] != outuints[i]) throw new Exception("Error in uints multiply");
+
+            var outlongs = virtualSPE.Accelerate<long[], long, long[]>(CILArray.ArrayTest.mult, longs, 4);
+            CILArray.ArrayTest.mult(longs, 4);
+            for (int i = 0; i < longs.Length; i++) if (longs[i] != outlongs[i]) throw new Exception("Error in long multiply");
+
+            var outulongs = virtualSPE.Accelerate<ulong[], ulong, ulong[]>(CILArray.ArrayTest.mult, ulongs, 4);
+            CILArray.ArrayTest.mult(ulongs, 4);
+            for (int i = 0; i < ulongs.Length; i++) if (ulongs[i] != outulongs[i]) throw new Exception("Error in ulong multiply");
+
+            var outfloats = virtualSPE.Accelerate<float[], float, float[]>(CILArray.ArrayTest.mult, floats, 4);
+            CILArray.ArrayTest.mult(floats, 4);
+            for (int i = 0; i < floats.Length; i++) if (floats[i] != outfloats[i]) throw new Exception("Error in float multiply");
+
+            var outdoubles = virtualSPE.Accelerate<double[], double, double[]>(CILArray.ArrayTest.mult, doubles, 4);
+            CILArray.ArrayTest.mult(doubles, 4);
+            for (int i = 0; i < doubles.Length; i++) if (doubles[i] != outdoubles[i]) throw new Exception("Error in double multiply");
+
         }
+
+
 
         /// <summary>
         /// Emulated 64 bit multiplication with 16 bit multiply

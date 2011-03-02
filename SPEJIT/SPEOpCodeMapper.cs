@@ -1562,13 +1562,13 @@ namespace SPEJIT
 
             uint mask;
             if (eldivsize == 0)
-                mask = 0x7fff;
+                mask = 0x8000;
             else if (eldivsize == 1)
-                mask = 0x3fff;
+                mask = 0xC000;
             else if (eldivsize == 2)
-                mask = 0x0fff;
+                mask = 0xf000;
             else if (eldivsize == 3)
-                mask = 0x00ff;
+                mask = 0xff00;
             else
                 throw new InvalidProgramException();
 
@@ -1576,13 +1576,31 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.fsmbi(_RTMP3, mask)); //Get mask
             m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP3, _RTMP3, _RTMP2)); //Rotate into place
 
-            //Remove the current value in the slot
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, (uint)pointer.RegisterNumber, 0x0)); //Load current
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP2, _RTMP2, _RTMP3)); //Mask out slot
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.xori(_RTMP3, _RTMP3, 0x3ff)); //Invert mask
             
             //Place the new value in the slot
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, (uint)value.RegisterNumber, _RTMP3)); //Select the portion of the value
+            if (eldivsize == 0)
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, (uint)pointer.RegisterNumber, 0x03)); //3 - Pointer
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP2, _RTMP2, 0x03)); //Only low 2 bits
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP0, (uint)value.RegisterNumber, _RTMP2)); //Rotate into place
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, _RTMP0, _RTMP3)); //Select the portion of the value
+            }
+            else if (eldivsize == 1)
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, (uint)pointer.RegisterNumber, 0x02)); //2 - Pointer
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP2, _RTMP2, 0x02)); //Only bit at pos 1
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP0, (uint)value.RegisterNumber, _RTMP2)); //Rotate into place
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, _RTMP0, _RTMP3)); //Select the portion of the value
+            }
+            else
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, (uint)value.RegisterNumber, _RTMP3)); //Select the portion of the value
+            }
+
+            //Remove the current value in the slot
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.xori(_RTMP3, _RTMP3, 0x3ff)); //Invert mask
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, (uint)pointer.RegisterNumber, 0x0)); //Load current
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP2, _RTMP2, _RTMP3)); //Mask out slot
             m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP0, _RTMP0, _RTMP2)); //Merge the two values
 
             //Save the value in LS
