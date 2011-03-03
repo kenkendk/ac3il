@@ -10,7 +10,10 @@ namespace AccCIL
     {
         protected FunctionFilterDelegate m_functionFilter = new FunctionFilterDelegate(SameAssemblyFilter);
         protected Dictionary<MethodDefinition, List<ICompiledMethod>> m_compilationCache = new Dictionary<MethodDefinition, List<ICompiledMethod>>();
-        protected MethodDefinition m_lastLoadedMethod = null;
+        protected MethodDefinition m_loadedMethod = null;
+        protected Type[] m_loadedMethodTypes;
+        protected bool[] m_typeSerializeOut;
+        protected bool[] m_typeSerializeIn;
 
         private static bool SameAssemblyFilter(MethodReference initial, MethodReference parent, MethodReference current)
         {
@@ -21,6 +24,34 @@ namespace AccCIL
         {
             get { return m_functionFilter; }
             set { m_functionFilter = value; }
+        }
+
+        /// <summary>
+        /// Internal helper function that ensures that all book keeping variables are set when loading a method
+        /// </summary>
+        /// <param name="methodset">The list of compiled methods that comprises the kernel</param>
+        /// <param name="types">The set of types that the method signature dictates</param>
+        /// <param name="method">The method to invoke</param>
+        private void LoadProgramInternal(List<ICompiledMethod> methodset, MethodDefinition method, Type[] types)
+        {
+            if (m_loadedMethod != method)
+            {
+                m_loadedMethod = method;
+                m_loadedMethodTypes = types;
+
+                m_typeSerializeIn = new bool[method.Parameters.Count];
+                m_typeSerializeOut = new bool[method.Parameters.Count];
+                for (int i = 0; i < method.Parameters.Count; i++)
+                {
+                    m_typeSerializeIn[i] = m_typeSerializeOut[i] = true;
+                    if (method.Parameters[i].Attributes.HasFlag(Mono.Cecil.ParameterAttributes.In) && !method.Parameters[i].Attributes.HasFlag(Mono.Cecil.ParameterAttributes.Out))
+                        m_typeSerializeOut[i] = false;
+                    else if (method.Parameters[i].Attributes.HasFlag(Mono.Cecil.ParameterAttributes.Out) && !method.Parameters[i].Attributes.HasFlag(Mono.Cecil.ParameterAttributes.In))
+                        m_typeSerializeIn[i] = false;
+                }
+
+                LoadProgram(methodset);
+            }
         }
 
         protected T DoAccelerate<T>(string assemblyfile, string methodName, Type[] types, params object[] args)
@@ -38,8 +69,7 @@ namespace AccCIL
             if (methodset == null)
                 m_compilationCache.Add(initialMethod, methodset = CompileMethod(initialMethod));
 
-            if (m_lastLoadedMethod != initialMethod)
-                LoadProgram(methodset);
+            LoadProgramInternal(methodset, initialMethod, types);
 
             return Execute<T>(args);
         }

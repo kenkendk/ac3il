@@ -48,7 +48,6 @@ namespace SPEJIT
 
         public override T Execute<T>(params object[] args)
         {
-
             bool showGui = this.ShowGUI;
 
             SPEEmulator.SPEProcessor spe;
@@ -74,186 +73,154 @@ namespace SPEJIT
 
             uint lsoffset = (uint)spe.LS.Length - (16 * 8);
 
-            List<uint> addedObjects = new List<uint>();
+            Type[] types = m_loadedMethodTypes;
+            Dictionary<uint, int> addedObjects = new Dictionary<uint, int>();
 
             for (int i = args.Length - 1; i >= 0; i--)
             {
                 lsoffset -= 16;
 
-                if (args[i] is int || args[i] is uint || args[i] is short || args[i] is ushort || args[i] is byte || args[i] is sbyte)
+                if (types[i] == typeof(int) || types[i] == typeof(uint) || types[i] == typeof(short) || types[i] == typeof(ushort) || types[i] == typeof(byte) || types[i] == typeof(sbyte))
                 {
                     spe.WriteLSWord(lsoffset, (uint)Convert.ToInt32(args[i]));
                     spe.WriteLSWord(lsoffset + 4, (uint)Convert.ToInt32(args[i]));
                     spe.WriteLSWord(lsoffset + 8, (uint)Convert.ToInt32(args[i]));
                     spe.WriteLSWord(lsoffset + 12, (uint)Convert.ToInt32(args[i]));
                 }
-                else if (args[i] is long || args[i] is ulong)
+                else if (types[i] == typeof(long) || types[i] == typeof(ulong))
                 {
                     spe.WriteLSDWord(lsoffset, (ulong)Convert.ToInt64(args[i]));
                     spe.WriteLSDWord(lsoffset + 8, (ulong)Convert.ToInt64(args[i]));
                 }
-                else if (args[i] is float)
+                else if (types[i] == typeof(float))
                 {
                     spe.WriteLSFloat(lsoffset, (float)args[i]);
                     spe.WriteLSFloat(lsoffset + 4, (float)args[i]);
                     spe.WriteLSFloat(lsoffset + 8, (float)args[i]);
                     spe.WriteLSFloat(lsoffset + 12, (float)args[i]);
                 }
-                else if (args[i] is double)
+                else if (types[i] == typeof(double))
                 {
                     spe.WriteLSDouble(lsoffset, (double)args[i]);
                     spe.WriteLSDouble(lsoffset + 8, (double)args[i]);
                 }
-                else if (args[i] is bool)
+                else if (types[i] == typeof(bool))
                 {
                     spe.WriteLSWord(lsoffset, (uint)(((bool)args[i]) ? 1 : 0));
                     spe.WriteLSWord(lsoffset + 4, (uint)(((bool)args[i]) ? 1 : 0));
                     spe.WriteLSWord(lsoffset + 8, (uint)(((bool)args[i]) ? 1 : 0));
                     spe.WriteLSWord(lsoffset + 12, (uint)(((bool)args[i]) ? 1 : 0));
                 }
-                else if (args[i] != null && args[i].GetType().IsArray)
+                else if (types[i].IsArray)
                 {
-                    //Register a new object in the object table
-                    uint tablecount = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET - 16);
-                    uint tablesize = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET - 16 + 4);
-
-                    if (tablecount == tablesize)
-                        throw new Exception("Not enough space in SPE object table");
-
-                    uint nextoffset = 0;
-                    for (uint j = 0; j < tablecount; j++)
+                    if (args[i] == null)
                     {
-                        uint objsize = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (j * 16) + 4);
-                        uint objoffset = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (j * 16) + 8);
-                        nextoffset = Math.Max(nextoffset, objoffset + objsize + ((16 - objsize % 16) % 16));
+                        spe.WriteLSWord(lsoffset, 0);
+                        spe.WriteLSWord(lsoffset + 4, 0);
+                        spe.WriteLSWord(lsoffset + 8, 0);
+                        spe.WriteLSWord(lsoffset + 12, 0);
                     }
-
-                    Type elType = args[i].GetType().GetElementType();
-                    uint elementsize;
-                    AccCIL.KnownObjectTypes objtype;
-
-                    switch (elType.FullName)
+                    else
                     {
-                        case "System.Boolean":
-                            objtype = AccCIL.KnownObjectTypes.Boolean;
-                            elementsize = 1;
-                            break;
-                        case "System.Byte":
-                            objtype = AccCIL.KnownObjectTypes.Byte;
-                            elementsize = 1;
-                            break;
-                        case "System.SByte":
-                            objtype = AccCIL.KnownObjectTypes.SByte;
-                            elementsize = 1;
-                            break;
-                        case "System.UInt16":
-                            objtype = AccCIL.KnownObjectTypes.UShort;
-                            elementsize = 2;
-                            break;
-                        case "System.Int16":
-                            objtype = AccCIL.KnownObjectTypes.Short;
-                            elementsize = 2;
-                            break;
-                        case "System.UInt32":
-                            objtype = AccCIL.KnownObjectTypes.UInt;
-                            elementsize = 4;
-                            break;
-                        case "System.Int32":
-                            objtype = AccCIL.KnownObjectTypes.Int;
-                            elementsize = 4;
-                            break;
-                        case "System.UInt64":
-                            objtype = AccCIL.KnownObjectTypes.ULong;
-                            elementsize = 8;
-                            break;
-                        case "System.Int64":
-                            objtype = AccCIL.KnownObjectTypes.Long;
-                            elementsize = 8;
-                            break;
-                        case "System.Single":
-                            objtype = AccCIL.KnownObjectTypes.Float;
-                            elementsize = 4;
-                            break;
-                        case "System.Double":
-                            objtype = AccCIL.KnownObjectTypes.Double;
-                            elementsize = 8;
-                            break;
-                        default:
-                            throw new Exception("Unsupported element type: " + elType.FullName);
-                    }
 
-                    Array arr = (Array)args[i];
-                    uint arraysize = (uint)((arr).Length * elementsize);
-                    uint requiredSpace = arraysize + ((16 - arraysize % 16) % 16);
+                        //Register a new object in the object table
+                        uint tablecount = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET - 16);
+                        uint tablesize = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET - 16 + 4);
 
-                    if (nextoffset + requiredSpace > spe.LSLR)
-                        throw new Exception(string.Format("Unable to fit array of size {0} onto spe at offset {1}", requiredSpace, nextoffset));
+                        if (tablecount == tablesize)
+                            throw new Exception("Not enough space in SPE object table");
 
-                    //Write the object table description
-                    spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16), (uint)objtype);
-                    spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16) + 4, arraysize);
-                    spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16) + 8, nextoffset);
-                    spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16) + 12, 0);
-
-                    //Update the table counter
-                    spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET, tablecount + 1);
-
-                    
-                    //Copy over the contents
-                    byte[] localbuffer = new byte[requiredSpace];
-                    EndianBitConverter ebc = new EndianBitConverter(localbuffer);
-
-                    for (int j = 0; j < arr.Length; j++)
-                    {
-                        switch (objtype)
+                        uint nextoffset = 0;
+                        for (uint j = 0; j < tablecount; j++)
                         {
-                            case AccCIL.KnownObjectTypes.Boolean:
-                                ebc.WriteByte((byte)((bool)arr.GetValue(j) ? 1 : 0));
-                                break;
-                            case AccCIL.KnownObjectTypes.SByte:
-                                ebc.WriteByte((byte)((sbyte)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.Byte:
-                                ebc.WriteByte((byte)((byte)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.UShort:
-                                ebc.WriteUShort((ushort)((ushort)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.Short:
-                                ebc.WriteUShort((ushort)((short)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.UInt:
-                                ebc.WriteUInt((uint)((uint)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.Int:
-                                ebc.WriteUInt((uint)((int)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.ULong:
-                                ebc.WriteULong((ulong)((ulong)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.Long:
-                                ebc.WriteULong((ulong)((long)arr.GetValue(j)));
-                                break;
-                            case AccCIL.KnownObjectTypes.Float:
-                                ebc.WriteFloat((float)arr.GetValue(j));
-                                break;
-                            case AccCIL.KnownObjectTypes.Double:
-                                ebc.WriteDouble((double)arr.GetValue(j));
-                                break;
-                            default:
-                                throw new InvalidProgramException();
+                            uint objsize = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (j * 16) + 4);
+                            uint objoffset = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (j * 16) + 8);
+                            nextoffset = Math.Max(nextoffset, objoffset + objsize + ((16 - objsize % 16) % 16));
                         }
+
+                        Type elType = types[i].GetElementType();
+                        AccCIL.KnownObjectTypes objtype = AccCIL.AccCIL.GetObjType(elType);
+                        uint elementsize = 1u << (int)BuiltInMethods.get_array_elem_len_mult(objtype);
+
+                        Array arr = (Array)args[i];
+                        uint arraysize = (uint)((arr).Length * elementsize);
+                        uint requiredSpace = arraysize + ((16 - arraysize % 16) % 16);
+
+                        if (nextoffset + requiredSpace > spe.LSLR)
+                            throw new Exception(string.Format("Unable to fit array of size {0} onto spe at offset {1}", requiredSpace, nextoffset));
+
+                        //Write the object table description
+                        spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16), (uint)objtype);
+                        spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16) + 4, arraysize);
+                        spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16) + 8, nextoffset);
+                        spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (tablecount * 16) + 12, 0);
+
+                        //Update the table counter
+                        spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET - 16, tablecount + 1);
+
+
+                        byte[] localbuffer = new byte[requiredSpace];
+
+                        if (m_typeSerializeIn[i])
+                        {
+                            //Build contents in local memory
+                            EndianBitConverter ebc = new EndianBitConverter(localbuffer);
+
+                            for (int j = 0; j < arr.Length; j++)
+                            {
+                                switch (objtype)
+                                {
+                                    case AccCIL.KnownObjectTypes.Boolean:
+                                        ebc.WriteByte((byte)((bool)arr.GetValue(j) ? 1 : 0));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.SByte:
+                                        ebc.WriteByte((byte)((sbyte)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.Byte:
+                                        ebc.WriteByte((byte)((byte)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.UShort:
+                                        ebc.WriteUShort((ushort)((ushort)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.Short:
+                                        ebc.WriteUShort((ushort)((short)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.UInt:
+                                        ebc.WriteUInt((uint)((uint)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.Int:
+                                        ebc.WriteUInt((uint)((int)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.ULong:
+                                        ebc.WriteULong((ulong)((ulong)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.Long:
+                                        ebc.WriteULong((ulong)((long)arr.GetValue(j)));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.Float:
+                                        ebc.WriteFloat((float)arr.GetValue(j));
+                                        break;
+                                    case AccCIL.KnownObjectTypes.Double:
+                                        ebc.WriteDouble((double)arr.GetValue(j));
+                                        break;
+                                    default:
+                                        throw new InvalidProgramException();
+                                }
+                            }
+
+                        }
+
+                        //Copy data over
+                        Array.Copy(localbuffer, 0, spe.LS, nextoffset, localbuffer.Length);
+
+                        //Set the register to the object table index
+                        spe.WriteLSWord(lsoffset, tablecount);
+                        spe.WriteLSWord(lsoffset + 4, tablecount);
+                        spe.WriteLSWord(lsoffset + 8, tablecount);
+                        spe.WriteLSWord(lsoffset + 12, tablecount);
+                        addedObjects.Add(tablecount, i);
+
                     }
-
-                    Array.Copy(localbuffer, 0, spe.LS, nextoffset, localbuffer.Length);
-
-                    //Set the register to the object table index
-                    spe.WriteLSWord(lsoffset, tablecount);
-                    spe.WriteLSWord(lsoffset + 4, tablecount);
-                    spe.WriteLSWord(lsoffset + 8, tablecount);
-                    spe.WriteLSWord(lsoffset + 12, tablecount);
-                    addedObjects.Add(tablecount);
-
                 }
                 else
                     throw new Exception("Unsupported argument type: " + args[i].GetType());
@@ -278,10 +245,86 @@ namespace SPEJIT
                     throw new Exception("Invalid exitcode: " + m_exitCode);
 
             }
-            //s.ShowDialog();
 
-            //TODO: Clean LS object table
+            //Now extract data back into the objects that are byref
+            foreach (KeyValuePair<uint, int> k in addedObjects)
+            {
+                if (m_loadedMethodTypes[k.Value].IsArray)
+                {
+                    if (m_typeSerializeOut[k.Value])
+                    {
+                        AccCIL.KnownObjectTypes objtype = (AccCIL.KnownObjectTypes)spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16));
+                        uint arraysize = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 4);
+                        uint offset = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 8);
 
+                        uint elementsize = 1u << (int)BuiltInMethods.get_array_elem_len_mult(objtype);
+                        Array data = (Array)args[k.Value];
+
+                        System.Diagnostics.Debug.Assert(data.Length == arraysize / elementsize);
+                        System.Diagnostics.Debug.Assert(AccCIL.AccCIL.GetObjType(m_loadedMethodTypes[k.Value].GetElementType()) == objtype);
+
+                        byte[] localcopy = new byte[arraysize + ((16 - arraysize % 16) % 16)];
+                        Array.Copy(spe.LS, offset, localcopy, 0, localcopy.Length);
+                        EndianBitConverter c = new EndianBitConverter(localcopy);
+
+                        for (int i = 0; i < data.Length; i++)
+                        {
+                            switch (objtype)
+                            {
+                                case AccCIL.KnownObjectTypes.Boolean:
+                                    data.SetValue(c.ReadByte() == 1 ? true : false, i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.SByte:
+                                    data.SetValue((sbyte)c.ReadByte(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.Byte:
+                                    data.SetValue(c.ReadByte(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.UShort:
+                                    data.SetValue(c.ReadUShort(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.Short:
+                                    data.SetValue((short)c.ReadUShort(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.UInt:
+                                    data.SetValue(c.ReadUInt(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.Int:
+                                    data.SetValue((int)c.ReadUInt(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.ULong:
+                                    data.SetValue(c.ReadULong(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.Long:
+                                    data.SetValue((long)c.ReadULong(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.Float:
+                                    data.SetValue(c.ReadFloat(), i);
+                                    break;
+                                case AccCIL.KnownObjectTypes.Double:
+                                    data.SetValue(c.ReadDouble(), i);
+                                    break;
+                                default:
+                                    throw new Exception("Unexpected data type: " + objtype.ToString());
+                            }
+                        }
+                    }
+                }
+                else
+                    throw new Exception("Unexpected ref object");
+
+                //Now remove the entry from the LS object table
+                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16), 0);
+                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 4, 0);
+                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 8, 0);
+                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 12, 0);
+
+                //Decrement the table counter
+                uint objcount = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET);
+                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET, objcount - 1);
+            }
+
+            
             Type rtype = typeof(T);
 
             if (rtype == typeof(uint))
@@ -311,125 +354,12 @@ namespace SPEJIT
                 uint objindex = spe.ReadLSWord(0);
                 if (objindex == 0)
                     return default(T);
-
-                uint arraysize = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (objindex * 16) + 4);
-                uint offset = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (objindex * 16) + 8);
-
-
-                Type elType = rtype.GetElementType();
-                uint elementsize;
-                AccCIL.KnownObjectTypes objtype;
-                Array results;
-
-                byte[] localcopy = new byte[arraysize + ((16 - arraysize % 16) % 16)];
-                Array.Copy(spe.LS, offset, localcopy, 0, localcopy.Length);
-
-                switch (elType.FullName)
+                else
                 {
-                    case "System.Boolean":
-                        objtype = AccCIL.KnownObjectTypes.Boolean;
-                        elementsize = 1;
-                        results = new bool[arraysize / elementsize];
-                        break;
-                    case "System.Byte":
-                        objtype = AccCIL.KnownObjectTypes.Byte;
-                        elementsize = 1;
-                        results = new byte[arraysize / elementsize];
-                        break;
-                    case "System.SByte":
-                        objtype = AccCIL.KnownObjectTypes.SByte;
-                        elementsize = 1;
-                        results = new sbyte[arraysize / elementsize];
-                        break;
-                    case "System.UInt16":
-                        objtype = AccCIL.KnownObjectTypes.UShort;
-                        elementsize = 2;
-                        results = new ushort[arraysize / elementsize];
-                        break;
-                    case "System.Int16":
-                        objtype = AccCIL.KnownObjectTypes.Short;
-                        elementsize = 2;
-                        results = new short[arraysize / elementsize];
-                        break;
-                    case "System.UInt32":
-                        objtype = AccCIL.KnownObjectTypes.UInt;
-                        elementsize = 4;
-                        results = new uint[arraysize / elementsize];
-                        break;
-                    case "System.Int32":
-                        objtype = AccCIL.KnownObjectTypes.Int;
-                        elementsize = 4;
-                        results = new int[arraysize / elementsize];
-                        break;
-                    case "System.UInt64":
-                        objtype = AccCIL.KnownObjectTypes.ULong;
-                        elementsize = 8;
-                        results = new ulong[arraysize / elementsize];
-                        break;
-                    case "System.Int64":
-                        objtype = AccCIL.KnownObjectTypes.Long;
-                        elementsize = 8;
-                        results = new long[arraysize / elementsize];
-                        break;
-                    case "System.Single":
-                        objtype = AccCIL.KnownObjectTypes.Float;
-                        elementsize = 4;
-                        results = new float[arraysize / elementsize];
-                        break;
-                    case "System.Double":
-                        objtype = AccCIL.KnownObjectTypes.Double;
-                        elementsize = 8;
-                        results = new double[arraysize / elementsize];
-                        break;
-                    default:
-                        throw new Exception("Unsupported element type: " + elType.FullName);
+                    if (!m_typeSerializeOut[addedObjects[objindex]])
+                        throw new InvalidOperationException("Cannot return an object that was marked as [In] only");
+                    return (T)args[addedObjects[objindex]];
                 }
-
-                EndianBitConverter c = new EndianBitConverter(localcopy);
-
-                for (int i = 0; i < results.Length; i++)
-                {
-                    switch (objtype)
-                    {
-                        case AccCIL.KnownObjectTypes.Boolean:
-                            results.SetValue(c.ReadByte() == 1 ? true : false, i);
-                            break;
-                        case AccCIL.KnownObjectTypes.SByte:
-                            results.SetValue((sbyte)c.ReadByte(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.Byte:
-                            results.SetValue(c.ReadByte(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.UShort:
-                            results.SetValue(c.ReadUShort(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.Short:
-                            results.SetValue((short)c.ReadUShort(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.UInt:
-                            results.SetValue(c.ReadUInt(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.Int:
-                            results.SetValue((int)c.ReadUInt(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.ULong:
-                            results.SetValue(c.ReadULong(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.Long:
-                            results.SetValue((long)c.ReadULong(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.Float:
-                            results.SetValue(c.ReadFloat(), i);
-                            break;
-                        case AccCIL.KnownObjectTypes.Double:
-                            results.SetValue(c.ReadDouble(), i);
-                            break;
-                        default:
-                            throw new Exception("Unexpected data type: " + objtype.ToString());
-                    }
-                }
-
-                return (T)(object)results;
             }
             else
                 throw new Exception("Return type not supported: " + rtype.FullName);

@@ -1256,11 +1256,6 @@ namespace SPEJIT
             Ldelem_common(el);
         }
 
-        public void Ldelem_u8(InstructionElement el)
-        {
-            Ldelem_common(el);
-        }
-
         public void Ldelem_r4(InstructionElement el)
         {
             Ldelem_common(el);
@@ -1280,219 +1275,226 @@ namespace SPEJIT
             if (el.Childnodes[1].StorageClass != typeof(int))
                 throw new Exception("Unexpected index type: " + el.Childnodes[1].StorageClass.ToString());
 
-            //Test that the array is not null
-            //TODO: Jump to an NullException raise function
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz((uint)arrayPointer.RegisterNumber, 0));
-
-            //Verify that the array has the correct type and that the index is within range
-            
-            //Get the object table entry
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP0, (uint)arrayPointer.RegisterNumber, 0x4)); //Times 16
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP0, _RTMP0, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
-
-            AccCIL.KnownObjectTypes arraytype;
+            KnownObjectTypes[] arraytypes;
 
             switch (el.Instruction.OpCode.Code)
             {
                 case Mono.Cecil.Cil.Code.Ldelem_I1:
-                    arraytype = KnownObjectTypes.SByte;
+                //case Mono.Cecil.Cil.Code.Ldelem_Bool: //Does not exist
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.SByte, KnownObjectTypes.Boolean };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_I2:
-                    arraytype = KnownObjectTypes.Short;
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Short };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_I4:
-                    arraytype = KnownObjectTypes.Int;
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.Int };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_I8:
-                    arraytype = KnownObjectTypes.Long;
+                //case Mono.Cecil.Cil.Code.Ldelem_U8: //Does not exist
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.Long, KnownObjectTypes.ULong };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_R4:
-                    arraytype = KnownObjectTypes.Float;
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.Float };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_R8:
-                    arraytype = KnownObjectTypes.Double;
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.Double };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_U1:
-                    arraytype = KnownObjectTypes.Byte;
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.Byte };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_U2:
-                    arraytype = KnownObjectTypes.UShort;
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.UShort };
                     break;
                 case Mono.Cecil.Cil.Code.Ldelem_U4:
-                    arraytype = KnownObjectTypes.UInt;
+                    arraytypes = new KnownObjectTypes[] {  KnownObjectTypes.UInt };
                     break;
-                //case Mono.Cecil.Cil.Code.Ldelem_U8:
-                //Does not exist, uses I8 instead
-                //case Mono.Cecil.Cil.Code.Ldelem_Bool
-                //Does not exist, uses I1 instead
                 default:
                     throw new Exception("Unsupport array type: " + el.Instruction.OpCode.Code);
             }
 
-            uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytype);
+            LoadElementAddress(el, arraytypes, (uint)elementIndex.RegisterNumber, (uint)arrayPointer.RegisterNumber, _RTMP0);
+            LoadElement(arraytypes[0], _RTMP0, (uint)o.RegisterNumber);
+
+            PushStack(o);
+        }
 
 
+        public void Stelem_i1(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
+        public void Stelem_i2(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
+        public void Stelem_i4(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
+        public void Stelem_i8(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
+        public void Stelem_r4(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
+        public void Stelem_r8(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
+        public void Stelem_common(InstructionElement el)
+        {
+            VirtualRegister value = PopStack(_RTMP3);
+
+            VirtualRegister elementIndex = PopStack(_RTMP0);
+            VirtualRegister arrayPointer = PopStack(_RTMP1);
+
+            //Since we need all the temporary registers, we cannot keep the value in memory,
+            // but it is first on the stack, so we are required to pop it
+            //We push it back onto stack here. If the value is in a register,
+            // this adds no extra instructions, otherwise it will add a store/load set
+            PushStack(value);
+
+            KnownObjectTypes[] arraytypes;
+
+            switch (el.Instruction.OpCode.Code)
+            {
+                case Mono.Cecil.Cil.Code.Stelem_I:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Int };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_I1:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.SByte, KnownObjectTypes.Boolean, KnownObjectTypes.Byte };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_I2:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Short, KnownObjectTypes.UShort };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_I4:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Int, KnownObjectTypes.UInt };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_I8:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Long, KnownObjectTypes.ULong };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_R4:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Float };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_R8:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Double };
+                    break;
+                default:
+                    throw new Exception("Unsupported stelem instruction: " + el.Instruction.OpCode.Code);
+            }
+
+            LoadElementAddress(el, arraytypes, (uint)elementIndex.RegisterNumber, (uint)arrayPointer.RegisterNumber, _RTMP1);
+
+            //Get back the value
+            value = PopStack(_RTMP0);
+
+            StoreElement(arraytypes[0], _RTMP1, (uint)value.RegisterNumber);
+        }
+
+        /// <summary>
+        /// Internal helper function that takes two registers (tmp0 and tmp1) and calculates the absolute LS address of an
+        /// array element and stores the address in the output register
+        /// </summary>
+        /// <param name="el">The instruction being issued</param>
+        /// <param name="arraytype">The accepted array element type, all must have same size</param>
+        /// <param name="elementIndex">The register that holds the element index, must be _RTMP0 or _RTMP1</param>
+        /// <param name="arrayPointer">The register that holds the object pointer index, must be _RTMP0 or _RTMP1</param>
+        /// <param name="output">The register into which the resulting address will be written</param>
+        private void LoadElementAddress(InstructionElement el, AccCIL.KnownObjectTypes[] arraytypes, uint elementIndex, uint arrayPointer, uint output)
+        {
+            //Ensure that we are not using the temp registers
+            System.Diagnostics.Debug.Assert(elementIndex != _RTMP2 && elementIndex != _RTMP3);
+            System.Diagnostics.Debug.Assert(arrayPointer != _RTMP2 && arrayPointer != _RTMP3);
+
+            uint extraTmp = arrayPointer;
+            if (extraTmp != _RTMP0 && extraTmp != _RTMP1)
+                extraTmp = elementIndex == _RTMP0 ? _RTMP1 : _RTMP0;
+
+            //Test that the array is not null
+            //TODO: Jump to an NullException raise function
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(arrayPointer, 0));
+
+            //Get the object table entry
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, arrayPointer, 0x4)); //Times 16
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, _RTMP2, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
+
+            uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytypes[0]);
+
+            //Verify that the array has the correct type and that the index is within range
             if (!el.IsIndexChecked)
             {
                 //TODO: It seems that the CIL is expected to perform the compatible type check?
 
-                //Verrify the data type
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.ceqi(_RTMP3, _RTMP0, (uint)arraytype));
-                
-                //Special case I8 can also mean ulong
-                if (el.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Ldelem_I8)
+                if (arraytypes.Length == 1)
                 {
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.ceqi(_RTMP2, _RTMP0, (uint)KnownObjectTypes.ULong));
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP3, _RTMP3, _RTMP2));
-                } 
-                //Special case I1 can also mean bool
-                else if (el.Instruction.OpCode.Code == Mono.Cecil.Cil.Code.Ldelem_I1)
+                    //Verrify the data type
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.ceqi(_RTMP3, _RTMP2, (uint)arraytypes[0]));
+                }
+                else
                 {
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.ceqi(_RTMP2, _RTMP0, (uint)KnownObjectTypes.Boolean));
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP3, _RTMP3, _RTMP2));
+                    //Clear a storage area
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xor(_RTMP3, _RTMP3, _RTMP3));
+
+                    foreach (KnownObjectTypes t in arraytypes)
+                    {
+                        //Verrify the data type
+                        m_state.Instructions.Add(new SPEEmulator.OpCodes.ceqi(extraTmp, _RTMP2, (uint)t));
+                        m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP3, extraTmp, _RTMP3));
+                    }
                 }
 
                 //TODO: Jump to an InvalidProgram exception raise function
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_RTMP3, 0));
 
+
                 //Verify the size of the array
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(_RTMP3, _RTMP0, 0x4)); //Move word into position
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotmi(_RTMP3, _RTMP3, (uint)((-eldivsize) & 0x7f))); //Move word into position and divide with elementsize
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.cgt(_RTMP2, (uint)elementIndex.RegisterNumber, _RTMP3));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(extraTmp, _RTMP2, 0x4)); //Move word into position
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotmi(_RTMP3, extraTmp, (uint)((-eldivsize) & 0x7f))); //Move word into position and divide with elementsize
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.cgt(extraTmp, elementIndex, _RTMP3));
                 //TODO: Jump to an IndexOutOfRange exception raise function
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_RTMP2, 0x0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.ceq(_RTMP2, (uint)elementIndex.RegisterNumber, _RTMP3));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(extraTmp, 0x0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.ceq(extraTmp, elementIndex, _RTMP3));
                 //TODO: Jump to an IndexOutOfRange exception raise function
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_RTMP2, 0x0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(extraTmp, 0x0));
             }
 
             //Get the base pointer offset
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(_RTMP3, _RTMP0, 0x8));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(_RTMP3, _RTMP2, 0x8));
 
             //Calculate adress based on index * elsize + offset
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, (uint)elementIndex.RegisterNumber, (uint)eldivsize));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqx(_RTMP3, _RTMP3, _RTMP2));
-
-            //Figure out how much non-aligned we are
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP0, (uint)elementIndex.RegisterNumber, 0xfu >> (int)eldivsize)); //Use only the lower bits
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP0, _RTMP0, (uint)eldivsize)); //Multiply by element size
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP3, _RTMP3, _RTMP0)); //Rotate into prefered slot
-
-            bool signed = arraytype == KnownObjectTypes.SByte || arraytype == KnownObjectTypes.Short || arraytype == KnownObjectTypes.Int || arraytype == KnownObjectTypes.Long;
-
-            if (signed)
-            {
-                ulong mask;
-                if (eldivsize == 0)
-                    mask = 0x1010101010101010;
-                else if (eldivsize == 1)
-                    mask = 0x1011101110111011;
-                else if (eldivsize == 2)
-                    mask = 0x1011121310111213;
-                else if (eldivsize == 3)
-                    mask = 0x1011121314151617;
-                else
-                    throw new InvalidProgramException();
-
-                //Load the new value into the register
-                m_state.RegisterConstantLoad(mask, mask); //Load value into register
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_RTMP0, 0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb((uint)o.RegisterNumber, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
-
-                //Since the element must be stored as int32 on stack, we must convert it and sign extend it
-                if (eldivsize <= 0)
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xsbh((uint)o.RegisterNumber, (uint)o.RegisterNumber)); //Convert to halfword
-                if (eldivsize <= 1)
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xshw((uint)o.RegisterNumber, (uint)o.RegisterNumber)); //Convert to word
-            }
-            else
-            {
-                ulong mask;
-                if (eldivsize == 0)
-                    mask = 0x8080801080808010;
-                else if (eldivsize == 1)
-                    mask = 0x8080101180801011;
-                else if (eldivsize == 2)
-                    mask = 0x1011121310111213;
-                else if (eldivsize == 3)
-                    mask = 0x1011121314151617;
-                else
-                    throw new InvalidProgramException();
-
-                //Load the new value into the register
-                m_state.RegisterConstantLoad(mask, mask); //Load value into register
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_RTMP0, 0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb((uint)o.RegisterNumber, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
-            }
-
-            PushStack(o);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, elementIndex, (uint)eldivsize));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.a(output, _RTMP3, _RTMP2));
         }
 
-        public void Ldelema(InstructionElement el)
+        /// <summary>
+        /// Function that loads an array element from an address and places it on the stack.
+        /// Note that this function is expected to be the last in a sequence and as
+        /// such destroys all temporary registers.
+        /// Note that this function does no type/index checking.
+        /// </summary>
+        /// <param name="arraytype">The array element type</param>
+        /// <param name="pointer">The register that holds the address, cannot be _RTMP3</param>
+        /// <param name="output">The register to receive the loaded value</param>
+        private void LoadElement(KnownObjectTypes arraytype, uint pointer, uint output)
         {
-            VirtualRegister elementIndex = PopStack(_RTMP0);
-            VirtualRegister arrayPointer = PopStack(_RTMP1);
-            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
+            //We overwrite this register early on
+            System.Diagnostics.Debug.Assert(pointer != _RTMP3);
 
-            if (el.Childnodes[1].StorageClass != typeof(int))
-                throw new Exception("Unexpected index type: " + el.Childnodes[1].StorageClass.ToString());
-
-            //Test that the array is not null
-            //TODO: Jump to an NullException raise function
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz((uint)arrayPointer.RegisterNumber, 0));
-
-
-            //Get the object table entry
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP0, (uint)arrayPointer.RegisterNumber, 0x4)); //Times 16
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP0, _RTMP0, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
-
-            AccCIL.KnownObjectTypes arraytype  = AccCIL.AccCIL.GetObjType(el.ReturnType);
-            uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytype);
-
-            //Verify that the array has the correct type and that the index is within range
-            if (!el.IsIndexChecked)
-            {
-                //TODO: It seems that the CIL is expected to perform the compatible type check?
-
-                //Verrify the data type
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.ceqi(_RTMP3, _RTMP0, (uint)arraytype));
-
-                //TODO: Jump to an InvalidProgram exception raise function
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_RTMP3, 0));
-
-                //Verify the size of the array
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(_RTMP3, _RTMP0, 0x4)); //Move word into position
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotmi(_RTMP3, _RTMP3, (uint)((-eldivsize) & 0x7f))); //Move word into position and divide with elementsize
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.cgt(_RTMP2, (uint)elementIndex.RegisterNumber, _RTMP3));
-                //TODO: Jump to an IndexOutOfRange exception raise function
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_RTMP2, 0x0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.ceq(_RTMP2, (uint)elementIndex.RegisterNumber, _RTMP3));
-                //TODO: Jump to an IndexOutOfRange exception raise function
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_RTMP2, 0x0));
-            }
-
-            //Get the base pointer offset
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(_RTMP3, _RTMP0, 0x8));
-
-            //Calculate adress based on index * elsize + offset
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, (uint)elementIndex.RegisterNumber, (uint)eldivsize));
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.a((uint)o.RegisterNumber, _RTMP3, _RTMP2));
-            PushStack(o);
-        }
-
-        public void Ldobj(InstructionElement el)
-        {
-            VirtualRegister arrayPointer = PopStack(_RTMP0);
-            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
-
-            AccCIL.KnownObjectTypes arraytype = AccCIL.AccCIL.GetObjType(el.ReturnType);
             uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytype);
 
             //Load the value
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP3, (uint)arrayPointer.RegisterNumber, 0));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP3, pointer, 0));
 
             //Figure out how much non-aligned we are
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP1, (uint)arrayPointer.RegisterNumber, 0xfu)); //Use only the lower bits
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP1, pointer, 0xfu)); //Use only the lower bits
             m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP3, _RTMP3, _RTMP1)); //Rotate into prefered slot
 
             bool signed = arraytype == KnownObjectTypes.SByte || arraytype == KnownObjectTypes.Short || arraytype == KnownObjectTypes.Int || arraytype == KnownObjectTypes.Long;
@@ -1514,13 +1516,13 @@ namespace SPEJIT
                 //Load the new value into the register
                 m_state.RegisterConstantLoad(mask, mask); //Load element into register
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_RTMP0, 0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb((uint)o.RegisterNumber, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(output, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
 
                 //Since the element must be stored as int32 on stack, we must convert it and sign extend it
                 if (eldivsize <= 0)
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xsbh((uint)o.RegisterNumber, (uint)o.RegisterNumber)); //Convert to halfword
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xsbh(output, output)); //Convert to halfword
                 if (eldivsize <= 1)
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xshw((uint)o.RegisterNumber, (uint)o.RegisterNumber)); //Convert to word
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xshw(output, output)); //Convert to word
             }
             else
             {
@@ -1539,23 +1541,28 @@ namespace SPEJIT
                 //Load the new value into the register
                 m_state.RegisterConstantLoad(mask, mask); //Load element into register
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_RTMP0, 0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb((uint)o.RegisterNumber, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(output, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
             }
-
-            PushStack(o);
-
         }
 
-        public void Stobj(InstructionElement el)
+        /// <summary>
+        /// Stores the given value as an array element at the position indicated by the pointer.
+        /// Note that this function is expected to be the last in the sequence and
+        /// destroys all temporary registers.
+        /// Note that no type/index checks are performed.
+        /// </summary>
+        /// <param name="arraytype">The type of the array elements</param>
+        /// <param name="pointer">The register that contains the element address must not be _RTMP0, _RTMP2, _RTMP3</param>
+        /// <param name="value">The register that contains the value to store, must not be _RTMP1, _RTMP2, _RTMP3</param>
+        private void StoreElement(KnownObjectTypes arraytype, uint pointer, uint value)
         {
-            VirtualRegister value = PopStack(_RTMP0);
-            VirtualRegister pointer = PopStack(_RTMP1);
+            System.Diagnostics.Debug.Assert(pointer != _RTMP0 && pointer != _RTMP2 && pointer != _RTMP3);
+            System.Diagnostics.Debug.Assert(value != _RTMP1 && value != _RTMP2 && value != _RTMP3);
 
-            AccCIL.KnownObjectTypes arraytype = AccCIL.AccCIL.GetObjType(el.Childnodes[0].ReturnType);
             uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytype);
 
             //Calculate the number of bytes to shift left, i.e. 16 - bytes_shift_right
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, (uint)pointer.RegisterNumber, 0x10)); //16 - value
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, pointer, 0x10)); //16 - value
             
             //The instruction ignores anything but the low four bits anyway
             //m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP2, (uint)pointer.RegisterNumber, 0xfu)); //Remove anything but the low 4 bits
@@ -1580,31 +1587,64 @@ namespace SPEJIT
             //Place the new value in the slot
             if (eldivsize == 0)
             {
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, (uint)pointer.RegisterNumber, 0x03)); //3 - Pointer
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, pointer, 0x03)); //3 - Pointer
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP2, _RTMP2, 0x03)); //Only low 2 bits
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP0, (uint)value.RegisterNumber, _RTMP2)); //Rotate into place
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP0, value, _RTMP2)); //Rotate into place
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, _RTMP0, _RTMP3)); //Select the portion of the value
             }
             else if (eldivsize == 1)
             {
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, (uint)pointer.RegisterNumber, 0x02)); //2 - Pointer
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, pointer, 0x02)); //2 - Pointer
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP2, _RTMP2, 0x02)); //Only bit at pos 1
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP0, (uint)value.RegisterNumber, _RTMP2)); //Rotate into place
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP0, value, _RTMP2)); //Rotate into place
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, _RTMP0, _RTMP3)); //Select the portion of the value
             }
             else
             {
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, (uint)value.RegisterNumber, _RTMP3)); //Select the portion of the value
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP0, value, _RTMP3)); //Select the portion of the value
             }
 
             //Remove the current value in the slot
             m_state.Instructions.Add(new SPEEmulator.OpCodes.xori(_RTMP3, _RTMP3, 0x3ff)); //Invert mask
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, (uint)pointer.RegisterNumber, 0x0)); //Load current
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, pointer, 0x0)); //Load current
             m_state.Instructions.Add(new SPEEmulator.OpCodes.and(_RTMP2, _RTMP2, _RTMP3)); //Mask out slot
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP0, _RTMP0, _RTMP2)); //Merge the two values
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.or(_RTMP0, _RTMP0, _RTMP2)); //Merge the two values        
 
             //Save the value in LS
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd(_RTMP0, (uint)pointer.RegisterNumber, 0));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd(_RTMP0, pointer, 0));
+        }
+
+        public void Ldelema(InstructionElement el)
+        {
+            VirtualRegister elementIndex = PopStack(_RTMP0);
+            VirtualRegister arrayPointer = PopStack(_RTMP1);
+            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
+
+            if (el.Childnodes[1].StorageClass != typeof(int))
+                throw new Exception("Unexpected index type: " + el.Childnodes[1].StorageClass.ToString());
+
+            LoadElementAddress(el, new KnownObjectTypes[] { AccCIL.AccCIL.GetObjType(el.ReturnType) }, (uint)elementIndex.RegisterNumber, (uint)arrayPointer.RegisterNumber, (uint)o.RegisterNumber);
+            PushStack(o);
+        }
+
+        public void Ldobj(InstructionElement el)
+        {
+            VirtualRegister arrayPointer = PopStack(_RTMP0);
+            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
+
+            LoadElement(AccCIL.AccCIL.GetObjType(el.ReturnType), (uint)arrayPointer.RegisterNumber, (uint)o.RegisterNumber);
+
+            PushStack(o);
+        }
+
+        public void Stobj(InstructionElement el)
+        {
+            VirtualRegister value = PopStack(_RTMP0);
+            VirtualRegister pointer = PopStack(_RTMP1);
+
+            AccCIL.KnownObjectTypes arraytype = AccCIL.AccCIL.GetObjType(el.Childnodes[0].ReturnType);
+
+            StoreElement(arraytype, (uint)pointer.RegisterNumber, (uint)value.RegisterNumber);
         }
 
         public void Ldlen(InstructionElement el)
