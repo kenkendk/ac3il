@@ -91,13 +91,16 @@ namespace JITTester
 
             try
             {
-                AccCIL.IAccellerator virtualSPE = new SPEJIT.CellSPEEmulatorAccelerator();
+                AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
+                ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
+
                 //long result = virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
                 //virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
                 //var test = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
                 //var sum = virtualSPE.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, test, 4);
 
-                TestSuite();
+                ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
+                TestSuite(acc);
             }
             catch (Exception ex)
             {
@@ -116,135 +119,135 @@ namespace JITTester
         private static float[] TestFloats { get { return new float[] { 0, -1, 2, -3, 4, -5, 6, -7, 8, -9 }; } }
         private static double[] TestDoubles { get { return new double[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }; } }
 
-        public static void TestSuite()
+        public static void TestSuite(AccCIL.IAccellerator acc)
         {
-            AccCIL.IAccellerator virtualSPE = new SPEJIT.CellSPEEmulatorAccelerator();
-            ((SPEJIT.CellSPEEmulatorAccelerator)virtualSPE).ShowGUI = false;
+            acc.Accelerate(CILFac.Fac.TestLogicals);
+            acc.Accelerate(CILFac.Fac.TestArithmetics);
+            acc.Accelerate(CILFac.Fac.TestMultiply);
 
-            long result = virtualSPE.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
+            long result = acc.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
             if (result != CILFac.Fac.Factorial(10))
                 throw new Exception("Failed to run fac");
 
-
-            var bytesum = virtualSPE.Accelerate<byte[], byte>(CILArray.ArrayTest.sum, TestBytes);
+            var bytesum = acc.Accelerate<byte[], byte>(CILArray.ArrayTest.sum, TestBytes);
             if (bytesum != CILArray.ArrayTest.sum(TestBytes))
                 throw new Exception("Sum of bytes failed");
 
-            var sbytesum = virtualSPE.Accelerate<sbyte[], sbyte>(CILArray.ArrayTest.sum, TestSBytes);
+            var sbytesum = acc.Accelerate<sbyte[], sbyte>(CILArray.ArrayTest.sum, TestSBytes);
             if (sbytesum != CILArray.ArrayTest.sum(TestSBytes))
                 throw new Exception("Sum of sbytes failed");
             
-            var shortsum = virtualSPE.Accelerate<short[], short>(CILArray.ArrayTest.sum, TestShorts);
+            var shortsum = acc.Accelerate<short[], short>(CILArray.ArrayTest.sum, TestShorts);
             if (shortsum != CILArray.ArrayTest.sum(TestShorts))
                 throw new Exception("Sum of shorts failed");
 
-            var ushortsum = virtualSPE.Accelerate<ushort[], ushort>(CILArray.ArrayTest.sum, TestUShorts);
+            var ushortsum = acc.Accelerate<ushort[], ushort>(CILArray.ArrayTest.sum, TestUShorts);
             if (ushortsum != CILArray.ArrayTest.sum(TestUShorts))
                 throw new Exception("Sum of ushorts failed");
 
-            var intsum = virtualSPE.Accelerate<int[], int>(CILArray.ArrayTest.sum, TestInts);
+            var intsum = acc.Accelerate<int[], int>(CILArray.ArrayTest.sum, TestInts);
             if (intsum != CILArray.ArrayTest.sum(TestInts))
                 throw new Exception("Sum of ints failed");
 
-            var uintsum = virtualSPE.Accelerate<uint[], uint>(CILArray.ArrayTest.sum, TestUInts);
+            var uintsum = acc.Accelerate<uint[], uint>(CILArray.ArrayTest.sum, TestUInts);
             if (uintsum != CILArray.ArrayTest.sum(TestUInts))
                 throw new Exception("Sum of uints failed");
 
-            var longsum = virtualSPE.Accelerate<long[], long>(CILArray.ArrayTest.sum, TestLongs);
+            var longsum = acc.Accelerate<long[], long>(CILArray.ArrayTest.sum, TestLongs);
             if (longsum != CILArray.ArrayTest.sum(TestLongs))
                 throw new Exception("Sum of longs failed");
 
-            var ulongsum = virtualSPE.Accelerate<ulong[], ulong>(CILArray.ArrayTest.sum, TestULongs);
+            var ulongsum = acc.Accelerate<ulong[], ulong>(CILArray.ArrayTest.sum, TestULongs);
             if (ulongsum != CILArray.ArrayTest.sum(TestULongs))
                 throw new Exception("Sum of ulongs failed");
 
-            var floatsum = virtualSPE.Accelerate<float[], float>(CILArray.ArrayTest.sum, TestFloats);
+            var floatsum = acc.Accelerate<float[], float>(CILArray.ArrayTest.sum, TestFloats);
             if (floatsum != CILArray.ArrayTest.sum(TestFloats))
                 throw new Exception("Sum of floats failed");
 
-            var doublesum = virtualSPE.Accelerate<double[], double>(CILArray.ArrayTest.sum, TestDoubles);
+            var doublesum = acc.Accelerate<double[], double>(CILArray.ArrayTest.sum, TestDoubles);
             if (doublesum != CILArray.ArrayTest.sum(TestDoubles))
                 throw new Exception("Sum of doubles failed");
 
 
-            var outbytes = virtualSPE.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, TestBytes, 4);
+            var outbytes = acc.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, TestBytes, 4);
             var cmpbytes = CILArray.ArrayTest.mult(TestBytes, 4);
             for (int i = 0; i < cmpbytes.Length; i++) if (cmpbytes[i] != outbytes[i]) throw new Exception("Error in byte multiply");
 
-            var outsbytes = virtualSPE.Accelerate<sbyte[], sbyte, sbyte[]>(CILArray.ArrayTest.mult, TestSBytes, 4);
+            var outsbytes = acc.Accelerate<sbyte[], sbyte, sbyte[]>(CILArray.ArrayTest.mult, TestSBytes, 4);
             var cmpsbytes = CILArray.ArrayTest.mult(TestSBytes, 4);
             for (int i = 0; i < cmpsbytes.Length; i++) if (cmpsbytes[i] != outsbytes[i]) throw new Exception("Error in sbyte multiply");
 
-            var outshorts = virtualSPE.Accelerate<short[], short, short[]>(CILArray.ArrayTest.mult, TestShorts, 4);
+            var outshorts = acc.Accelerate<short[], short, short[]>(CILArray.ArrayTest.mult, TestShorts, 4);
             var cmpshorts = CILArray.ArrayTest.mult(TestShorts, 4);
             for (int i = 0; i < cmpshorts.Length; i++) if (cmpshorts[i] != outshorts[i]) throw new Exception("Error in short multiply");
 
-            var outushorts = virtualSPE.Accelerate<ushort[], ushort, ushort[]>(CILArray.ArrayTest.mult, TestUShorts, 4);
+            var outushorts = acc.Accelerate<ushort[], ushort, ushort[]>(CILArray.ArrayTest.mult, TestUShorts, 4);
             var cmpushorts = CILArray.ArrayTest.mult(TestUShorts, 4);
             for (int i = 0; i < cmpushorts.Length; i++) if (cmpushorts[i] != outushorts[i]) throw new Exception("Error in ushort multiply");
 
-            var outints = virtualSPE.Accelerate<int[], int, int[]>(CILArray.ArrayTest.mult, TestInts, 4);
+            var outints = acc.Accelerate<int[], int, int[]>(CILArray.ArrayTest.mult, TestInts, 4);
             var cmpints = CILArray.ArrayTest.mult(TestInts, 4);
             for (int i = 0; i < cmpints.Length; i++) if (cmpints[i] != outints[i]) throw new Exception("Error in int multiply");
 
-            var outuints = virtualSPE.Accelerate<uint[], uint, uint[]>(CILArray.ArrayTest.mult, TestUInts, 4);
+            var outuints = acc.Accelerate<uint[], uint, uint[]>(CILArray.ArrayTest.mult, TestUInts, 4);
             var cmpuints = CILArray.ArrayTest.mult(TestUInts, 4);
             for (int i = 0; i < cmpuints.Length; i++) if (cmpuints[i] != outuints[i]) throw new Exception("Error in uints multiply");
 
-            var outlongs = virtualSPE.Accelerate<long[], long, long[]>(CILArray.ArrayTest.mult, TestLongs, 4);
+            var outlongs = acc.Accelerate<long[], long, long[]>(CILArray.ArrayTest.mult, TestLongs, 4);
             var cmplongs = CILArray.ArrayTest.mult(TestLongs, 4);
             for (int i = 0; i < cmplongs.Length; i++) if (cmplongs[i] != outlongs[i]) throw new Exception("Error in long multiply");
 
-            var outulongs = virtualSPE.Accelerate<ulong[], ulong, ulong[]>(CILArray.ArrayTest.mult, TestULongs, 4);
+            var outulongs = acc.Accelerate<ulong[], ulong, ulong[]>(CILArray.ArrayTest.mult, TestULongs, 4);
             var cmpulongs = CILArray.ArrayTest.mult(TestULongs, 4);
             for (int i = 0; i < cmpulongs.Length; i++) if (cmpulongs[i] != outulongs[i]) throw new Exception("Error in ulong multiply");
 
-            var outfloats = virtualSPE.Accelerate<float[], float, float[]>(CILArray.ArrayTest.mult, TestFloats, 4);
+            var outfloats = acc.Accelerate<float[], float, float[]>(CILArray.ArrayTest.mult, TestFloats, 4);
             var cmpfloats = CILArray.ArrayTest.mult(TestFloats, 4);
             for (int i = 0; i < cmpfloats.Length; i++) if (cmpfloats[i] != outfloats[i]) throw new Exception("Error in float multiply");
 
-            var outdoubles = virtualSPE.Accelerate<double[], double, double[]>(CILArray.ArrayTest.mult, TestDoubles, 4);
+            var outdoubles = acc.Accelerate<double[], double, double[]>(CILArray.ArrayTest.mult, TestDoubles, 4);
             var cmpdoubles = CILArray.ArrayTest.mult(TestDoubles, 4);
             for (int i = 0; i < cmpdoubles.Length; i++) if (cmpdoubles[i] != outdoubles[i]) throw new Exception("Error in double multiply");
 
 
-            virtualSPE.Accelerate<byte[], byte[], byte[]>(CILArray.ArrayTest.add, TestBytes, TestBytes, outbytes);
+            acc.Accelerate<byte[], byte[], byte[]>(CILArray.ArrayTest.add, TestBytes, TestBytes, outbytes);
             CILArray.ArrayTest.add(TestBytes, TestBytes, cmpbytes);
             for (int i = 0; i < cmpbytes.Length; i++) if (cmpbytes[i] != outbytes[i]) throw new Exception("Error in byte add");
 
-            virtualSPE.Accelerate<sbyte[], sbyte[], sbyte[]>(CILArray.ArrayTest.add, TestSBytes, TestSBytes, outsbytes);
+            acc.Accelerate<sbyte[], sbyte[], sbyte[]>(CILArray.ArrayTest.add, TestSBytes, TestSBytes, outsbytes);
             CILArray.ArrayTest.add(TestSBytes, TestSBytes, cmpsbytes);
             for (int i = 0; i < cmpsbytes.Length; i++) if (cmpsbytes[i] != outsbytes[i]) throw new Exception("Error in sbyte add");
 
-            virtualSPE.Accelerate<short[], short[], short[]>(CILArray.ArrayTest.add, TestShorts, TestShorts, outshorts);
+            acc.Accelerate<short[], short[], short[]>(CILArray.ArrayTest.add, TestShorts, TestShorts, outshorts);
             CILArray.ArrayTest.add(TestShorts, TestShorts, cmpshorts);
             for (int i = 0; i < cmpshorts.Length; i++) if (cmpshorts[i] != outshorts[i]) throw new Exception("Error in short add");
 
-            virtualSPE.Accelerate<ushort[], ushort[], ushort[]>(CILArray.ArrayTest.add, TestUShorts, TestUShorts, outushorts);
+            acc.Accelerate<ushort[], ushort[], ushort[]>(CILArray.ArrayTest.add, TestUShorts, TestUShorts, outushorts);
             CILArray.ArrayTest.add(TestUShorts, TestUShorts, cmpushorts);
             for (int i = 0; i < cmpushorts.Length; i++) if (cmpushorts[i] != outushorts[i]) throw new Exception("Error in ushort add");
 
-            virtualSPE.Accelerate<int[], int[], int[]>(CILArray.ArrayTest.add, TestInts, TestInts, outints);
+            acc.Accelerate<int[], int[], int[]>(CILArray.ArrayTest.add, TestInts, TestInts, outints);
             CILArray.ArrayTest.add(TestInts, TestInts, cmpints);
             for (int i = 0; i < cmpints.Length; i++) if (cmpints[i] != outints[i]) throw new Exception("Error in int add");
 
-            virtualSPE.Accelerate<uint[], uint[], uint[]>(CILArray.ArrayTest.add, TestUInts, TestUInts, outuints);
+            acc.Accelerate<uint[], uint[], uint[]>(CILArray.ArrayTest.add, TestUInts, TestUInts, outuints);
             CILArray.ArrayTest.add(TestUInts, TestUInts, cmpuints);
             for (int i = 0; i < cmpuints.Length; i++) if (cmpuints[i] != outuints[i]) throw new Exception("Error in uint add");
 
-            virtualSPE.Accelerate<long[], long[], long[]>(CILArray.ArrayTest.add, TestLongs, TestLongs, outlongs);
+            acc.Accelerate<long[], long[], long[]>(CILArray.ArrayTest.add, TestLongs, TestLongs, outlongs);
             CILArray.ArrayTest.add(TestLongs, TestLongs, cmplongs);
             for (int i = 0; i < cmplongs.Length; i++) if (cmplongs[i] != outlongs[i]) throw new Exception("Error in long add");
 
-            virtualSPE.Accelerate<ulong[], ulong[], ulong[]>(CILArray.ArrayTest.add, TestULongs, TestULongs, outulongs);
+            acc.Accelerate<ulong[], ulong[], ulong[]>(CILArray.ArrayTest.add, TestULongs, TestULongs, outulongs);
             CILArray.ArrayTest.add(TestULongs, TestULongs, cmpulongs);
             for (int i = 0; i < cmpulongs.Length; i++) if (cmpulongs[i] != outulongs[i]) throw new Exception("Error in ulong add");
 
-            virtualSPE.Accelerate<float[], float[], float[]>(CILArray.ArrayTest.add, TestFloats, TestFloats, outfloats);
+            acc.Accelerate<float[], float[], float[]>(CILArray.ArrayTest.add, TestFloats, TestFloats, outfloats);
             CILArray.ArrayTest.add(TestFloats, TestFloats, cmpfloats);
             for (int i = 0; i < cmpfloats.Length; i++) if (cmpfloats[i] != outfloats[i]) throw new Exception("Error in float add");
 
-            virtualSPE.Accelerate<double[], double[], double[]>(CILArray.ArrayTest.add, TestDoubles, TestDoubles, outdoubles);
+            acc.Accelerate<double[], double[], double[]>(CILArray.ArrayTest.add, TestDoubles, TestDoubles, outdoubles);
             CILArray.ArrayTest.add(TestDoubles, TestDoubles, cmpdoubles);
             for (int i = 0; i < cmpdoubles.Length; i++) if (cmpdoubles[i] != outdoubles[i]) throw new Exception("Error in double add");
         }

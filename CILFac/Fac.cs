@@ -16,7 +16,7 @@ namespace CILFac
             long x = Factorial(10);
         }
 
-        private static void TestArithmetics()
+        public static void TestArithmetics()
         {
             int ai;
             int bi;
@@ -47,7 +47,7 @@ namespace CILFac
                 rl = Math.Max(rl, 5);
         }
 
-        private static void TestMultiply()
+        public static void TestMultiply()
         {
             long test;
             
@@ -91,7 +91,7 @@ namespace CILFac
             }
         }
 
-        private static void TestLogicals()
+        public static void TestLogicals()
         {
             long x = -5;
             long y = -6;
