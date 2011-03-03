@@ -222,8 +222,8 @@ namespace SPEJIT
 
             SPEEmulator.EndianBitConverter conv = new SPEEmulator.EndianBitConverter(spe.LS);
 
-            spe.WriteLSWord(0, 0);
-            spe.WriteLSWord(4, (uint)args.Length);
+            conv.WriteUInt(0, 0);
+            conv.WriteUInt(4, (uint)args.Length);
 
             uint lsoffset = (uint)spe.LS.Length - (16 * 8);
 
@@ -236,43 +236,43 @@ namespace SPEJIT
 
                 if (types[i] == typeof(int) || types[i] == typeof(uint) || types[i] == typeof(short) || types[i] == typeof(ushort) || types[i] == typeof(byte) || types[i] == typeof(sbyte))
                 {
-                    spe.WriteLSWord(lsoffset, (uint)Convert.ToInt32(args[i]));
-                    spe.WriteLSWord(lsoffset + 4, (uint)Convert.ToInt32(args[i]));
-                    spe.WriteLSWord(lsoffset + 8, (uint)Convert.ToInt32(args[i]));
-                    spe.WriteLSWord(lsoffset + 12, (uint)Convert.ToInt32(args[i]));
+                    conv.WriteUInt(lsoffset, (uint)Convert.ToInt32(args[i]));
+                    conv.WriteUInt(lsoffset + 4, (uint)Convert.ToInt32(args[i]));
+                    conv.WriteUInt(lsoffset + 8, (uint)Convert.ToInt32(args[i]));
+                    conv.WriteUInt(lsoffset + 12, (uint)Convert.ToInt32(args[i]));
                 }
                 else if (types[i] == typeof(long) || types[i] == typeof(ulong))
                 {
-                    spe.WriteLSDWord(lsoffset, (ulong)Convert.ToInt64(args[i]));
-                    spe.WriteLSDWord(lsoffset + 8, (ulong)Convert.ToInt64(args[i]));
+                    conv.WriteULong(lsoffset, (ulong)Convert.ToInt64(args[i]));
+                    conv.WriteULong(lsoffset + 8, (ulong)Convert.ToInt64(args[i]));
                 }
                 else if (types[i] == typeof(float))
                 {
-                    spe.WriteLSFloat(lsoffset, (float)args[i]);
-                    spe.WriteLSFloat(lsoffset + 4, (float)args[i]);
-                    spe.WriteLSFloat(lsoffset + 8, (float)args[i]);
-                    spe.WriteLSFloat(lsoffset + 12, (float)args[i]);
+                    conv.WriteFloat(lsoffset, (float)args[i]);
+                    conv.WriteFloat(lsoffset + 4, (float)args[i]);
+                    conv.WriteFloat(lsoffset + 8, (float)args[i]);
+                    conv.WriteFloat(lsoffset + 12, (float)args[i]);
                 }
                 else if (types[i] == typeof(double))
                 {
-                    spe.WriteLSDouble(lsoffset, (double)args[i]);
-                    spe.WriteLSDouble(lsoffset + 8, (double)args[i]);
+                    conv.WriteDouble(lsoffset, (double)args[i]);
+                    conv.WriteDouble(lsoffset + 8, (double)args[i]);
                 }
                 else if (types[i] == typeof(bool))
                 {
-                    spe.WriteLSWord(lsoffset, (uint)(((bool)args[i]) ? 1 : 0));
-                    spe.WriteLSWord(lsoffset + 4, (uint)(((bool)args[i]) ? 1 : 0));
-                    spe.WriteLSWord(lsoffset + 8, (uint)(((bool)args[i]) ? 1 : 0));
-                    spe.WriteLSWord(lsoffset + 12, (uint)(((bool)args[i]) ? 1 : 0));
+                    conv.WriteUInt(lsoffset, (uint)(((bool)args[i]) ? 1 : 0));
+                    conv.WriteUInt(lsoffset + 4, (uint)(((bool)args[i]) ? 1 : 0));
+                    conv.WriteUInt(lsoffset + 8, (uint)(((bool)args[i]) ? 1 : 0));
+                    conv.WriteUInt(lsoffset + 12, (uint)(((bool)args[i]) ? 1 : 0));
                 }
                 else if (types[i].IsArray)
                 {
                     if (args[i] == null)
                     {
-                        spe.WriteLSWord(lsoffset, 0);
-                        spe.WriteLSWord(lsoffset + 4, 0);
-                        spe.WriteLSWord(lsoffset + 8, 0);
-                        spe.WriteLSWord(lsoffset + 12, 0);
+                        conv.WriteUInt(lsoffset, 0);
+                        conv.WriteUInt(lsoffset + 4, 0);
+                        conv.WriteUInt(lsoffset + 8, 0);
+                        conv.WriteUInt(lsoffset + 12, 0);
                     }
                     else
                     {
@@ -291,8 +291,8 @@ namespace SPEJIT
                     throw new Exception("Unsupported argument type: " + args[i].GetType());
             }
 
-            spe.WriteLSWord(8, lsoffset);
-            spe.WriteLSWord(12, 0);
+            conv.WriteUInt(8, lsoffset);
+            conv.WriteUInt(12, 0);
 
             if (showGui)
                 System.Windows.Forms.Application.Run(sx);
@@ -323,44 +323,44 @@ namespace SPEJIT
                     throw new Exception("Unexpected ref object");
 
                 //Now remove the entry from the LS object table
-                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16), 0);
-                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 4, 0);
-                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 8, 0);
-                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 12, 0);
+                conv.WriteUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16), 0);
+                conv.WriteUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 4, 0);
+                conv.WriteUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 8, 0);
+                conv.WriteUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET + (k.Key * 16) + 12, 0);
 
                 //Decrement the table counter
-                uint objcount = spe.ReadLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET);
-                spe.WriteLSWord(SPEJITCompiler.OBJECT_TABLE_OFFSET, objcount - 1);
+                uint objcount = conv.ReadUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET);
+                conv.WriteUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET, objcount - 1);
             }
 
             
             Type rtype = typeof(T);
 
             if (rtype == typeof(uint))
-                return (T)Convert.ChangeType(spe.ReadLSWord(0), typeof(T));
+                return (T)Convert.ChangeType(conv.ReadUInt(0), typeof(T));
             else if (rtype == typeof(int))
-                return (T)Convert.ChangeType((int)spe.ReadLSWord(0), typeof(T));
+                return (T)Convert.ChangeType((int)conv.ReadUInt(0), typeof(T));
             else if (rtype == typeof(short))
-                return (T)Convert.ChangeType((short)(spe.ReadLSWord(0) & 0xffff), typeof(T));
+                return (T)Convert.ChangeType((short)(conv.ReadUInt(0) & 0xffff), typeof(T));
             else if (rtype == typeof(ushort))
-                return (T)Convert.ChangeType((ushort)(spe.ReadLSWord(0) & 0xffff), typeof(T));
+                return (T)Convert.ChangeType((ushort)(conv.ReadUInt(0) & 0xffff), typeof(T));
             else if (rtype == typeof(byte))
-                return (T)Convert.ChangeType((byte)(spe.ReadLSWord(0) & 0xff), typeof(T));
+                return (T)Convert.ChangeType((byte)(conv.ReadUInt(0) & 0xff), typeof(T));
             else if (rtype == typeof(sbyte))
-                return (T)Convert.ChangeType((sbyte)(spe.ReadLSWord(0) & 0xff), typeof(T));
+                return (T)Convert.ChangeType((sbyte)(conv.ReadUInt(0) & 0xff), typeof(T));
             else if (rtype == typeof(ulong))
-                return (T)Convert.ChangeType(spe.ReadLSDWord(0), typeof(T));
+                return (T)Convert.ChangeType(conv.ReadULong(0), typeof(T));
             else if (rtype == typeof(long))
-                return (T)Convert.ChangeType((long)spe.ReadLSDWord(0), typeof(T));
+                return (T)Convert.ChangeType((long)conv.ReadULong(0), typeof(T));
             else if (rtype == typeof(float))
-                return (T)Convert.ChangeType(spe.ReadLSFloat(0), typeof(T));
+                return (T)Convert.ChangeType(conv.ReadFloat(0), typeof(T));
             else if (rtype == typeof(double))
-                return (T)Convert.ChangeType(spe.ReadLSDouble(0), typeof(T));
+                return (T)Convert.ChangeType(conv.ReadDouble(0), typeof(T));
             else if (rtype == typeof(ReturnTypeVoid))
                 return default(T);
             else if (rtype.IsArray)
             {
-                uint objindex = spe.ReadLSWord(0);
+                uint objindex = conv.ReadUInt(0);
                 if (objindex == 0)
                     return default(T);
                 else
