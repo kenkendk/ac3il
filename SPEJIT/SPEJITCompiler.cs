@@ -80,7 +80,7 @@ namespace SPEJIT
         /// <summary>
         /// The stop value that indicates successfull execution
         /// </summary>
-        public const uint STOP_SUCCESSFULL = 0x2110;
+        public const uint STOP_SUCCESSFULL = 0x2000;
 
         /// <summary>
         /// The stop value that indicates that a method was being invoked that was not loaded on the SPE
