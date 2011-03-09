@@ -16,6 +16,11 @@ namespace CILFac
             long x = Factorial(10);
         }
 
+        public static int PPEInvokeTest(int a, int b)
+        {
+            return Math.Max(a, b);
+        }
+
         public static void TestArithmetics()
         {
             int ai;

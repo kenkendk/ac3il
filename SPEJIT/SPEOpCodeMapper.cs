@@ -23,6 +23,7 @@ namespace SPEJIT
         public const uint _RTMP1 = SPEJITCompiler._TMP1;
         public const uint _RTMP2 = SPEJITCompiler._TMP2;
         public const uint _RTMP3 = SPEJITCompiler._TMP3;
+        public const uint _RTMP4 = SPEJITCompiler._TMP4;
 
         /// <summary>
         /// The inverse value of register size, used in add operations
@@ -489,7 +490,7 @@ namespace SPEJIT
                 throw new InvalidProgramException();
         }
 
-        private Type ValidateBinaryOp(InstructionElement el)
+        private Type ValidateBinaryOp(InstructionElement el, bool allowPointers)
         {
             if (el.Childnodes == null || el.Childnodes.Length != 2)
                 throw new InvalidProgramException();
@@ -504,6 +505,8 @@ namespace SPEJIT
                 return typeof(float);
             else if (el.Childnodes[0].StorageClass == typeof(double))
                 return typeof(double);
+            else if (el.Childnodes[0].StorageClass == typeof(IntPtr) && allowPointers)
+                return typeof(IntPtr);
             else
                 throw new InvalidProgramException("Binary Op for <" + el.Childnodes[0].StorageClass + "> ?");
         }
@@ -517,7 +520,7 @@ namespace SPEJIT
 
         public void Clt(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
@@ -584,7 +587,7 @@ namespace SPEJIT
 
         public void Clt_un(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
@@ -639,7 +642,7 @@ namespace SPEJIT
 
         public void Cgt(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
@@ -685,7 +688,7 @@ namespace SPEJIT
 
         public void Cgt_un(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
@@ -723,13 +726,13 @@ namespace SPEJIT
 
         public void Ceq(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, true);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
             VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
 
-            if (t == typeof(int))
+            if (t == typeof(int) || t == typeof(IntPtr))
                 m_state.Instructions.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] {
                     new SPEEmulator.OpCodes.ceq(_RTMP0, (uint)r0.RegisterNumber, (uint)r1.RegisterNumber),
                     new SPEEmulator.OpCodes.il(_RTMP1, 0x1), //Load a 0 or 1 mask
@@ -822,7 +825,7 @@ namespace SPEJIT
 
         public void Sub(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
@@ -855,7 +858,7 @@ namespace SPEJIT
 
         public void Mul(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             if (t == typeof(long))
             {
@@ -864,7 +867,7 @@ namespace SPEJIT
                 PopStack(_ARG0, true);
 
                 m_state.RegisterCall(CompiledMethod.m_builtins["umul"]);
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(0, 0xffff));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
 
                 PushStack(new VirtualRegister(_ARG0));
                 return;
@@ -1068,7 +1071,7 @@ namespace SPEJIT
 
         public void Add(InstructionElement el)
         {
-            Type t = ValidateBinaryOp(el);
+            Type t = ValidateBinaryOp(el, false);
 
             VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
@@ -1113,7 +1116,7 @@ namespace SPEJIT
 
             m_state.RegisterCall(mdef);
             // i16 (set to 0xffff) should be replaced with correct value, when it is known!
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(0, 0xffff));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
 
             if (mdef.ReturnType.ReturnType.FullName != "System.Void")
                 PushStack(new VirtualRegister(_ARG0));
@@ -1351,16 +1354,10 @@ namespace SPEJIT
 
         public void Stelem_common(InstructionElement el)
         {
-            VirtualRegister value = PopStack(_RTMP3);
+            VirtualRegister value = PopStack(_RTMP4);
 
             VirtualRegister elementIndex = PopStack(_RTMP0);
             VirtualRegister arrayPointer = PopStack(_RTMP1);
-
-            //Since we need all the temporary registers, we cannot keep the value in memory,
-            // but it is first on the stack, so we are required to pop it
-            //We push it back onto stack here. If the value is in a register,
-            // this adds no extra instructions, otherwise it will add a store/load set
-            PushStack(value);
 
             KnownObjectTypes[] arraytypes;
 
@@ -1392,10 +1389,6 @@ namespace SPEJIT
             }
 
             LoadElementAddress(el, arraytypes, (uint)elementIndex.RegisterNumber, (uint)arrayPointer.RegisterNumber, _RTMP1);
-
-            //Get back the value
-            value = PopStack(_RTMP0);
-
             StoreElement(arraytypes[0], _RTMP1, (uint)value.RegisterNumber);
         }
 
@@ -1666,7 +1659,7 @@ namespace SPEJIT
             //Calculate the size of the element
             m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(_ARG0, _RTMP3, 0));
             m_state.RegisterCall(CompiledMethod.m_builtins["get_array_elem_len_mult"]);
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.brsl(0, 0xffff));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
 
             //Get the size of the array
             m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi((uint)o.RegisterNumber, _RTMP3, 0x4)); //Move word into position

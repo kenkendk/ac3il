@@ -119,7 +119,6 @@ namespace SPEJIT
             }
         }
 
-
         public VirtualRegister PopStack()
         {
             VirtualRegister r = m_stack.Pop();
@@ -232,7 +231,7 @@ namespace SPEJIT
             }
         }
 
-        public void PatchCalls(Dictionary<Mono.Cecil.MethodReference, int> methodOffsets, int callhandlerOffset)
+        public void PatchCalls(Dictionary<Mono.Cecil.MethodReference, int> methodOffsets, int callhandlerOffset, Dictionary<int, Mono.Cecil.MethodReference> callpoints)
         {
             foreach (KeyValuePair<int, Mono.Cecil.MethodReference> call in m_calls)
             {
@@ -240,12 +239,13 @@ namespace SPEJIT
                 int ownOffset = methodOffsets[this.Method.Method] + Prolouge.Count;
 
                 if (m_instructionList[call.Key] is SPEEmulator.OpCodes.Bases.RI16)
-                    ((SPEEmulator.OpCodes.Bases.RI16)m_instructionList[call.Key]).I16 = (uint)((callOffset - (ownOffset + call.Key)) & 0xffff);
+                    ((SPEEmulator.OpCodes.brasl)m_instructionList[call.Key]).I16 = (uint)(callOffset);
                 else
                     throw new Exception("Unexpected SPE instruction where a branch should have been?");
-            }
-                
 
+                int callposition = call.Key + ownOffset;
+                callpoints.Add(callposition, call.Value);
+            }
         }
 
         /// <summary>

@@ -100,6 +100,35 @@ namespace AccCIL
             return null;
         }
 
+        public static System.Reflection.MethodInfo FindReflectionMethod(MethodReference calledmethod)
+        {
+            string methodname = calledmethod.DeclaringType.FullName + "." + calledmethod.Name;
+            string assemblyName = FindAssemblyName(calledmethod);
+            System.Reflection.Assembly asm = System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName));
+            foreach (var mod in asm.GetModules())
+                foreach (var type in asm.GetTypes())
+                    if (type.FullName == calledmethod.DeclaringType.FullName)
+                        foreach (var method in type.GetMethods())
+                            if (method.Name == calledmethod.Name)
+                            {
+                                var margs = method.GetParameters();
+                                if (margs.Length == calledmethod.Parameters.Count)
+                                {
+                                    bool match = true;
+                                    for (int i = 0; i < margs.Length; i++)
+                                        if (margs[i].ParameterType != Type.GetType(calledmethod.Parameters[i].ParameterType.FullName))
+                                        {
+                                            match = false;
+                                            break;
+                                        }
+
+                                    if (match)
+                                        return method;
+                                }
+                            }
+
+            return null;
+        }
 
         /*public static List<ICompiledMethod> JIT(IJITCompiler compiler, string assemblyfile, string[] functionnames, FunctionFilterDelegate functionfilter)
         {

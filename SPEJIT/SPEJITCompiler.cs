@@ -106,18 +106,21 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The compiled methods</param>
-        public void EmitELFStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> methods)
+        public Dictionary<int, Mono.Cecil.MethodReference> EmitELFStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> methods)
         {
+            Dictionary<int, Mono.Cecil.MethodReference> callpoints;
             using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
             {
                 uint bootloader_offset;
-                EmitInstructionStream(ms, assemblyOutput, methods, out bootloader_offset);
+                callpoints = EmitInstructionStream(ms, assemblyOutput, methods, out bootloader_offset);
 
                 SPEEmulator.ELFReader.EmitELFHeader((uint)ms.Length, bootloader_offset, outstream);
                 
                 ms.Position = 0;
                 ms.CopyTo(outstream);
             }
+
+            return callpoints;
         }
 
 
@@ -127,13 +130,14 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The methods to compile</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<AccCIL.IR.MethodEntry> methods, out uint bootloader_offset)
+        /// <returns>A lookup table with all method calls</returns>
+        public Dictionary<int, Mono.Cecil.MethodReference> EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<AccCIL.IR.MethodEntry> methods, out uint bootloader_offset)
         {
             List<ICompiledMethod> cmps = new List<ICompiledMethod>();
             foreach (AccCIL.IR.MethodEntry me in methods)
                 cmps.Add(JIT(me));
 
-            EmitInstructionStream(outstream, assemblyOutput, cmps, out bootloader_offset);
+            return EmitInstructionStream(outstream, assemblyOutput, cmps, out bootloader_offset);
         }
 
 
@@ -164,10 +168,16 @@ namespace SPEJIT
         /// <param name="outstream">The output stream</param>
         /// <param name="assemblyOutput">The assembly text output, can be null</param>
         /// <param name="methods">The compiled methods</param>
-        public void EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> _methods, out uint bootloader_offset)
+        /// <returns>A lookup table with all method calls</returns>
+        public Dictionary<int, Mono.Cecil.MethodReference> EmitInstructionStream(System.IO.Stream outstream, System.IO.TextWriter assemblyOutput, IEnumerable<ICompiledMethod> _methods, out uint bootloader_offset)
         {
+            //Prepare the call lookup table
+            Dictionary<int, Mono.Cecil.MethodReference> callpoints = new Dictionary<int, Mono.Cecil.MethodReference>();
+
             //The size allocated for bootloader and call handler
-            int BOOTLOADER_LENGTH = (BOOT_LOADER.Length + CALL_HANDLER.Length) * 4;
+            int BOOTLOADER_LENGTH = BOOT_LOADER.Length + (4 - BOOT_LOADER.Length % 4) % 4;
+            BOOTLOADER_LENGTH += CALL_HANDLER.Length + (4 - CALL_HANDLER.Length % 4) % 4;
+            BOOTLOADER_LENGTH *= 4;
 
             //Typecast list
             List<CompiledMethod> methods = _methods.Select(x => (CompiledMethod)x).ToList();
@@ -211,7 +221,6 @@ namespace SPEJIT
             outstream.Write(ReverseEndian(BitConverter.GetBytes((int)0)), 0, 4); //Typename pointer
 
             codeOffset += BOOTLOADER_LENGTH;
-            codeOffset += (16 - BOOTLOADER_LENGTH % 16) % 16;
 
             Dictionary<CompiledMethod, int> methodOffsets = new Dictionary<CompiledMethod,int>();
             foreach(CompiledMethod cm in methods)
@@ -239,22 +248,21 @@ namespace SPEJIT
 
             bootloader_offset = (uint)outstream.Length;
 
-            List<SPEEmulator.OpCodes.Bases.Instruction> tmp = new List<SPEEmulator.OpCodes.Bases.Instruction>();
-
-            tmp.AddRange(BOOT_LOADER);
-            int callhandlerOffset = tmp.Count;
-            tmp.AddRange(CALL_HANDLER);
-
-            //Patch the entry point adress
-            int entryfunctionOffset = tmp.Count + (4 - tmp.Count % 4) % 4;
-            ((SPEEmulator.OpCodes.brsl)tmp[callhandlerOffset - INSTRUCTION_OFFSET_FOR_MAIN_BRSL]).I16 = (uint)(((entryfunctionOffset - callhandlerOffset)) + INSTRUCTION_OFFSET_FOR_MAIN_BRSL);
-
             if (assemblyOutput != null)
                 assemblyOutput.WriteLine("# Bootloader");
 
             //Flush loader code
-            InstructionsToBytes(tmp, outstream, assemblyOutput, null);
-            outstream.Write(zeroentry, 0, (16 - BOOTLOADER_LENGTH % 16) % 16);
+            InstructionsToBytes(BOOT_LOADER, outstream, assemblyOutput, null);
+            outstream.Write(zeroentry, 0, (16 - (BOOT_LOADER.Length * 4) % 16) % 16);
+
+            int callhandlerOffset = (int)outstream.Length / 4;
+
+            if (assemblyOutput != null)
+                assemblyOutput.WriteLine("# Callhandler");
+
+            //Flush loader code
+            InstructionsToBytes(CALL_HANDLER, outstream, assemblyOutput, null);
+            outstream.Write(zeroentry, 0, (16 - (CALL_HANDLER.Length * 4) % 16) % 16);
 
             //Create a fast lookup table            
             Dictionary<Mono.Cecil.MethodReference, int> methodOffsetLookup = methodOffsets.ToDictionary(x => (Mono.Cecil.MethodReference)x.Key.Method.Method, x => x.Value / 4);
@@ -279,7 +287,7 @@ namespace SPEJIT
                 }
 
                 cm.PatchBranches();
-                cm.PatchCalls(methodOffsetLookup, callhandlerOffset);
+                cm.PatchCalls(methodOffsetLookup, callhandlerOffset, callpoints);
                 cm.PatchConstants(offsets);
 
                 int offset = (cm.Prolouge.Count + cm.Instructions.Count + cm.Epilouge.Count) * 4;
@@ -338,23 +346,7 @@ namespace SPEJIT
                 }
             }
 
-            //If there is an assemblyStream present, write text representation
-            /*if (assemblyOutput != null)
-            {
-                offset = 0;
-                foreach (SPEEmulator.OpCodes.Bases.Instruction i in output)
-                {
-                    if (methodOffsetLookup.ContainsValue(offset))
-                    {
-                        foreach (KeyValuePair<Mono.Cecil.MethodReference, int> p in methodOffsetLookup)
-                            if (p.Value == offset)
-                                assemblyOutput.WriteLine("# Function entry: " + p.Key.Name);
-                    }
-                    assemblyOutput.WriteLine((offset * 4).ToString("x4") + ": " + i.ToString());
-                    offset++;
-                }
-            }*/
-
+            return callpoints;
         }
 
         private static byte[] ReverseEndian(byte[] input)
@@ -385,7 +377,7 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 0x4), //Move the argument count into preferred slot 
             new SPEEmulator.OpCodes.and(_TMP0, _TMP0, _TMP1), //Exclude the unwanted positions for count
 
-            new SPEEmulator.OpCodes.brz(_TMP0, 20), //Skip the initialization stuff if the start has no arguments
+            new SPEEmulator.OpCodes.brz(_TMP0, 22), //Skip the initialization stuff if the start has no arguments
 
             //TMP0 is the argument counter, TMP1 is the target register increment value, TMP2 is the argument adress
             new SPEEmulator.OpCodes.ila(_TMP1, 0x1), //We need to increment the target register with 1
@@ -426,30 +418,95 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
             new SPEEmulator.OpCodes.stqr(_TMP4, (uint)(-12 & 0xffff)), //Write the unmodified instruction back
 
+            //Load the first function from the object table
+            new SPEEmulator.OpCodes.lqa(_TMP0, (OBJECT_TABLE_OFFSET + 16 * 1) / 4), //Load the entry
+            new SPEEmulator.OpCodes.rotqbyi(_TMP0, _TMP0, 8), //Rotate the address into place
+
             //Jump to the address of the entry function
-            new SPEEmulator.OpCodes.brsl(_LR, 0xffff), //Jump to entry
-            new SPEEmulator.OpCodes.xor(_TMP0, _TMP0, _TMP0), //Clear a pointer
-            new SPEEmulator.OpCodes.stqd(_ARG0, _TMP0, 0x0), //Copy the return value to position 0x0
+            new SPEEmulator.OpCodes.bisl(_LR, _TMP0), //Jump to entry
+            new SPEEmulator.OpCodes.stqa(_ARG0, 0x0), //Copy the return value to position 0x0
             new SPEEmulator.OpCodes.stop(STOP_SUCCESSFULL)
         };
 
-        /// <summary>
-        /// The offset of the bootloader main brsl instruction, counting from the end of the bootloader
-        /// </summary>
-        private const int INSTRUCTION_OFFSET_FOR_MAIN_BRSL = 4;
 
 
         /// <summary>
         /// This is the call handler function
-        /// All function calls are routed through this, and it uses the PPE to resolve the actual call address
+        /// Unloaded function calls are routed through this, and it uses the PPE to resolve the actual call address
         /// </summary>
         private static readonly SPEEmulator.OpCodes.Bases.Instruction[] CALL_HANDLER = new SPEEmulator.OpCodes.Bases.Instruction[] {
-            new SPEEmulator.OpCodes.stop(STOP_METHOD_CALL) //TODO: Make it actually work
+            
+            //Create a regular stack for storing 74 arguments ($3 to $80) + 2 ($LR and $SP) = 76
+            new SPEEmulator.OpCodes.stqd(_LR, _SP, 1),
+            new SPEEmulator.OpCodes.stqd(_SP, _SP, (uint)((-(76 * (REGISTER_SIZE / 16))) & 0x3ff)),
+            new SPEEmulator.OpCodes.il(_TMP0, (uint)((-(76 * (REGISTER_SIZE))) & 0xFFFF)),
+            new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0),
 
-            //To get this working, there should be a table in memory with the current
-            // methods loaded and the call instructions
-            //When a method is invoked, the table is checked first, and otherwise
-            // the PPE is activated and asked to load the code and update the table
+            //Entry point for the application, start by loading the argument count
+            new SPEEmulator.OpCodes.il(_TMP0, 0x47), //Load the register count, 74
+
+            //Prepare _TMP1 with a special value that has bits 31 and 17 set
+            //This special value will increment the target register and the litteral
+            new SPEEmulator.OpCodes.ila(_TMP2, 0x4001), //Load the special value
+            new SPEEmulator.OpCodes.fsmbi(_TMP1, 0xf000), //Prepare a select mask
+            new SPEEmulator.OpCodes.and(_TMP1, _TMP2, _TMP1), //Mask anything but the high word to avoid alterning other instructions
+
+            //Load the current storage operation
+            new SPEEmulator.OpCodes.lqr(_TMP3, 4), //Load current instruction
+            new SPEEmulator.OpCodes.ori(_TMP2, _TMP3, 0), //Save an unmodified copy
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+
+            //Start loop, 
+            //_TMP0 is the counter
+            //_TMP1 is the increment value, 
+            //_TMP2 is the original instruction
+            //_TMP3 is the current instruction
+            new SPEEmulator.OpCodes.brz(_TMP0, 9), //while($75 != 0)
+            
+                //Store argument on stack -> NOTE: SELF MODIFYING CODE HERE!
+                new SPEEmulator.OpCodes.stqd(_ARG0, _SP, 2),
+
+                //Adjust offsets
+                new SPEEmulator.OpCodes.a(_TMP3, _TMP3, _TMP1), //Increment literal (sp offset) and target register
+                new SPEEmulator.OpCodes.ai(_TMP0, _TMP0, (uint)(-1 & 0x3ff)), //Decrement counter
+                new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+                new SPEEmulator.OpCodes.stqr(_TMP3, (uint)((-4) & 0xffff)), //Write the new instruction
+
+            new SPEEmulator.OpCodes.br(_TMP0, (uint)(-6 & 0xffff)), //End of while loop
+
+            //Now restore the original instruction so the function can be called again
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+            new SPEEmulator.OpCodes.stqr(_TMP2, (uint)(-8 & 0xffff)), //Write the unmodified instruction back
+
+            //We now have all registers stored on stack, write the SP in the call value
+            new SPEEmulator.OpCodes.stqr(_SP, 0xb), //Write the SP
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+
+            //Now make a branch to set the LR to point at the next instruction
+            new SPEEmulator.OpCodes.brsl(_LR, 0x8), //After stopping, excution will continue on the next instruction
+
+            //Restore the function result, if it was modified
+            new SPEEmulator.OpCodes.lqd(_ARG0, _SP, 2),
+            
+            //Restore the stack and return
+            new SPEEmulator.OpCodes.il(_TMP0, 76 * (REGISTER_SIZE)),
+            new SPEEmulator.OpCodes.a(_SP, _SP, _TMP0),
+            new SPEEmulator.OpCodes.lqd(_LR, _SP, 1),
+            new SPEEmulator.OpCodes.bi(_LR, _LR),
+            
+            //Invoked by the brsl above
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.stop(STOP_METHOD_CALL),
+            
+            //Space for storing the values passed to the PPE
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(),
+            
+
         };
 
 

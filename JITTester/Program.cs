@@ -96,8 +96,13 @@ namespace JITTester
 
                 //long result = virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
                 //virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
-                //var test = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-                //var sum = virtualSPE.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, test, 4);
+                //var test = new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+                //acc.Accelerate<int[], int[], int[]>(CILArray.ArrayTest.add, test, test, test);
+                //var x = acc.Accelerate<int, int, int>(CILFac.Fac.PPEInvokeTest, 1, 2);
+
+                //int[] n = new int[] { 4 };
+                //acc.Accelerate(CILArray.ArrayTest.testRef, n, n);
+                //acc.Accelerate(CILFac.Fac.TestMultiply);
 
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
                 TestSuite(acc);
@@ -124,6 +129,8 @@ namespace JITTester
             acc.Accelerate(CILFac.Fac.TestLogicals);
             acc.Accelerate(CILFac.Fac.TestArithmetics);
             acc.Accelerate(CILFac.Fac.TestMultiply);
+            int [] n = new int[] { 4 };
+            acc.Accelerate(CILArray.ArrayTest.testRef, n, n);
 
             long result = acc.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
             if (result != CILFac.Fac.Factorial(10))
