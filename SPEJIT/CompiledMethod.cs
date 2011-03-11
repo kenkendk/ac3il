@@ -33,6 +33,11 @@ namespace SPEJIT
         private List<KeyValuePair<int, string>> m_constantLoads;
 
         /// <summary>
+        /// A list of all registered literal strings, key is the instruction offset, value is the string
+        /// </summary>
+        private List<KeyValuePair<int, string>> m_stringLoads;
+
+        /// <summary>
         /// A list of calls, key is the call instruction offset, value is the invoked method
         /// </summary>
         private List<KeyValuePair<int, Mono.Cecil.MethodReference>> m_calls;
@@ -68,29 +73,34 @@ namespace SPEJIT
         private int m_returnOffset;
 
         /// <summary>
-        /// The function name
-        /// </summary>
-        private readonly byte[] m_functioname;
-
-        /// <summary>
         /// The method that this compilation belongs to
         /// </summary>
         public MethodEntry Method { get { return m_method; } }
 
         /// <summary>
-        /// A cached list of the builtin functions
+        /// A cached list of the builtin SPE functions
         /// </summary>
-        internal static IDictionary<string, Mono.Cecil.MethodDefinition> m_builtins = null;
+        internal static IDictionary<string, Mono.Cecil.MethodDefinition> m_spe_builtins = null;
+
+        /// <summary>
+        /// A cached list of the builtin PPE functions
+        /// </summary>
+        internal static IDictionary<string, Mono.Cecil.MethodDefinition> m_ppe_builtins = null;
 
         /// <summary>
         /// Static initializer, used to load the builtins
         /// </summary>
         static CompiledMethod()
         {
-            m_builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>();
+            m_spe_builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>();
+            m_ppe_builtins = new Dictionary<string, Mono.Cecil.MethodDefinition>();
 
-            foreach (Mono.Cecil.MethodDefinition mdef in Mono.Cecil.AssemblyFactory.GetAssembly(System.Reflection.Assembly.GetExecutingAssembly().Location).MainModule.Types["SPEJIT.BuiltInMethods"].Methods)
-                m_builtins.Add(mdef.Name, mdef);
+            foreach (Mono.Cecil.MethodDefinition mdef in Mono.Cecil.AssemblyFactory.GetAssembly(System.Reflection.Assembly.GetExecutingAssembly().Location).MainModule.Types["SPEJIT.BuiltInSPEMethods"].Methods)
+                m_spe_builtins.Add(mdef.Name, mdef);
+        
+            foreach (Mono.Cecil.MethodDefinition mdef in Mono.Cecil.AssemblyFactory.GetAssembly(System.Reflection.Assembly.GetExecutingAssembly().Location).MainModule.Types["SPEJIT.BuiltInPPEMethods"].Methods)
+                m_ppe_builtins.Add(mdef.Name, mdef);
+
         }
 
 
@@ -103,9 +113,8 @@ namespace SPEJIT
             m_calls = new List<KeyValuePair<int, Mono.Cecil.MethodReference>>();
             m_instructionList = new List<SPEEmulator.OpCodes.Bases.Instruction>();
             m_constantLoads = new List<KeyValuePair<int, string>>();
+            m_stringLoads = new List<KeyValuePair<int, string>>();
             m_stack = new Stack<VirtualRegister>();
-
-            m_functioname = System.Text.Encoding.UTF8.GetBytes(method.Method.Name);
         }
 
         public List<Mono.Cecil.MethodReference> CalledMethods
@@ -199,6 +208,11 @@ namespace SPEJIT
             RegisterConstantLoad(string.Format("{0:x16}{1:x16}", high, low));
         }
 
+        public void RegisterStringLoad(string value)
+        {
+            m_stringLoads.Add(new KeyValuePair<int, string>(m_instructionList.Count, value));
+        }
+
         public IEnumerable<string> Constants 
         { 
             get 
@@ -238,10 +252,19 @@ namespace SPEJIT
                 int callOffset = methodOffsets.ContainsKey(call.Value) ? methodOffsets[call.Value] : callhandlerOffset;
                 int ownOffset = methodOffsets[this.Method.Method] + Prolouge.Count;
 
-                if (m_instructionList[call.Key] is SPEEmulator.OpCodes.Bases.RI16)
+                if (m_instructionList[call.Key] is SPEEmulator.OpCodes.brasl)
                     ((SPEEmulator.OpCodes.brasl)m_instructionList[call.Key]).I16 = (uint)(callOffset);
                 else
                     throw new Exception("Unexpected SPE instruction where a branch should have been?");
+
+                if (m_instructionList[call.Key - 1] is SPEEmulator.OpCodes.il)
+                {
+                    ((SPEEmulator.OpCodes.il)m_instructionList[call.Key - 1]).I16 = (uint)call.Value.Parameters.Count;
+                    if (((SPEEmulator.OpCodes.il)m_instructionList[call.Key - 1]).RT != SPEJITCompiler._TMP4)
+                        throw new Exception("SPE branch instruction for call was missing the previous parameter count instruction?");
+                }
+                else
+                    throw new Exception("SPE branch instruction for call was missing the previous parameter count instruction?");
 
                 int callposition = call.Key + ownOffset;
                 callpoints.Add(callposition, call.Value);
@@ -257,17 +280,13 @@ namespace SPEJIT
         /// </summary>
         public int CodeSize { get { return (InstructionCount + (Constants.Count() * 4)) * 4; } }
         /// <summary>
-        /// Gets the bytes that represent the function name
-        /// </summary>
-        public byte[] FunctionName { get { return m_functioname; } }
-        /// <summary>
         /// Gets the total size, in bytes, of this function, including namestring, constants and padding
         /// </summary>
         public int TotalSize 
         { 
             get 
             { 
-                int realSize = CodeSize + m_functioname.Length + 4;
+                int realSize = CodeSize;
                 int padding = realSize % 16 > 0 ? 16 - (realSize % 16) : 0;
 
                 return realSize + padding;
@@ -283,5 +302,28 @@ namespace SPEJIT
         /// Gets a list of instruction offsets
         /// </summary>
         public IDictionary<Mono.Cecil.Cil.Instruction, int> InstructionOffsets { get { return m_instructionOffsets; } }
+
+        public string Fullname { get { return this.Method.Method.DeclaringType.FullName + "." + this.Method.Method.Name; } }
+
+        public IEnumerable<string> StringLiterals 
+        { 
+            get 
+            { 
+                List<string> r = m_stringLoads.Select(c => c.Value).ToList();
+                r.Add(this.Fullname);
+                return r.Distinct();
+            } 
+        }
+
+        internal void PatchStringLoads(Dictionary<string, uint> stringLiteralRefs)
+        {
+            foreach (KeyValuePair<int, string> c in m_stringLoads)
+            {
+                if (m_instructionList[c.Key] is SPEEmulator.OpCodes.il)
+                    ((SPEEmulator.OpCodes.il)m_instructionList[c.Key]).I16 = stringLiteralRefs[c.Value];
+                else
+                    throw new Exception("SPE string ref had invalid instruction");
+            }
+        }
     }
 }

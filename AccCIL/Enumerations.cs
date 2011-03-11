@@ -8,8 +8,12 @@ namespace AccCIL
     /// <summary>
     /// Defines type IDs for built-in types
     /// </summary>
-    public enum KnownObjectTypes : int
+    public enum KnownObjectTypes : uint
     {
+        Free = 0x0,
+        ObjectTable,
+        Bootloader,
+        Code,
         Boolean,
         Byte,
         SByte,
@@ -22,8 +26,6 @@ namespace AccCIL
         Float,
         Double,
         String,
-        Bootloader,
-        Code,
-        TypeTable
+        Object,
     }
 }

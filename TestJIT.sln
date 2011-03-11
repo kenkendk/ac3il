@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AccCIL", "AccCIL\AccCIL.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CUDAJIT", "CUDAJIT\CUDAJIT.csproj", "{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AccCILVisualizer", "AccCILVisualizer\AccCILVisualizer.csproj", "{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -107,6 +109,16 @@ Global
 		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
 		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}.Release|x86.ActiveCfg = Release|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{7ED7E285-EF50-4D37-A674-CBA8EC5F7A54}.Release|x86.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

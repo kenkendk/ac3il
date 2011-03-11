@@ -16,9 +16,19 @@ namespace CILFac
             long x = Factorial(10);
         }
 
+        public static int UnboxTest(object a)
+        {
+            return (int)a;
+        }
+
         public static int PPEInvokeTest(int a, int b)
         {
             return Math.Max(a, b);
+        }
+
+        public static void WritelineTest(int a)
+        {
+            Console.WriteLine(string.Format("Hello world: {0}", a));
         }
 
         public static void TestArithmetics()

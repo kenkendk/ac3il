@@ -73,6 +73,8 @@ namespace AccCIL.IR
             {
                 if (ReturnType == null)
                     return null;
+                else if (ReturnType.IsEnum)
+                    return typeof(int); //TODO: What about an enum that derives from a long?
                 else if (IsReturnTypeRef || !ReturnType.IsPrimitive)
                     return typeof(IntPtr);
                 else if (ReturnType == typeof(bool) || ReturnType == typeof(int) || ReturnType == typeof(uint) || ReturnType == typeof(byte) || ReturnType == typeof(sbyte) || ReturnType == typeof(short) || ReturnType == typeof(ushort))

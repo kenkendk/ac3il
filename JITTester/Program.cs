@@ -94,15 +94,10 @@ namespace JITTester
                 AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
 
-                //long result = virtualSPE.Accelerate<long,long>(CILFac.Fac.Factorial, 10);
-                //virtualSPE.Accelerate(CILFac.Fac.SPE_Main);
-                //var test = new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-                //acc.Accelerate<int[], int[], int[]>(CILArray.ArrayTest.add, test, test, test);
-                //var x = acc.Accelerate<int, int, int>(CILFac.Fac.PPEInvokeTest, 1, 2);
-
-                //int[] n = new int[] { 4 };
-                //acc.Accelerate(CILArray.ArrayTest.testRef, n, n);
-                //acc.Accelerate(CILFac.Fac.TestMultiply);
+                //acc.Accelerate(CILArray.ArrayTest.testRef2, n, n);
+                
+                /*if (acc.Accelerate<object, int>(CILFac.Fac.UnboxTest, (object)42) != 42)
+                    throw new Exception("Unbox failed");*/
 
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
                 TestSuite(acc);
@@ -131,6 +126,14 @@ namespace JITTester
             acc.Accelerate(CILFac.Fac.TestMultiply);
             int [] n = new int[] { 4 };
             acc.Accelerate(CILArray.ArrayTest.testRef, n, n);
+
+            //TODO: Fix these two cases
+            //acc.Accelerate(CILArray.ArrayTest.testRef2, n, n);
+            
+            /*if (acc.Accelerate<object, int>(CILFac.Fac.UnboxTest, (object)42) != 42)
+                throw new Exception("Unbox failed");*/
+
+            acc.Accelerate(CILFac.Fac.WritelineTest, 42);
 
             long result = acc.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
             if (result != CILFac.Fac.Factorial(10))

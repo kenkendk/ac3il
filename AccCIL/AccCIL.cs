@@ -401,9 +401,44 @@ namespace AccCIL
                 return KnownObjectTypes.Float;
             else if (t == typeof(double))
                 return KnownObjectTypes.Double;
+            else if (t == typeof(string))
+                return KnownObjectTypes.String;
             else
                 throw new Exception("Unsupported type: " + t.FullName);
 
+        }
+
+        public static Type GetObjType(KnownObjectTypes objt)
+        {
+            switch (objt)
+            {
+                case KnownObjectTypes.Boolean:
+                    return typeof(bool);
+                case KnownObjectTypes.Byte:
+                    return typeof(byte);
+                case KnownObjectTypes.SByte:
+                    return typeof(sbyte);
+                case KnownObjectTypes.Short:
+                    return typeof(short);
+                case KnownObjectTypes.UShort:
+                    return typeof(ushort);
+                case KnownObjectTypes.Int:
+                    return typeof(int);
+                case KnownObjectTypes.UInt:
+                    return typeof(uint);
+                case KnownObjectTypes.Long:
+                    return typeof(long);
+                case KnownObjectTypes.ULong:
+                    return typeof(ulong);
+                case KnownObjectTypes.Float:
+                    return typeof(float);
+                case KnownObjectTypes.Double:
+                    return typeof(double);
+                case KnownObjectTypes.String:
+                    return typeof(string);
+                default:
+                    throw new Exception("Unexpected type: " + objt.ToString());
+            }
         }
     }
 }

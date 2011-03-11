@@ -17,9 +17,6 @@ namespace AccCIL
             //Does this instruction have an output?
             if (current.Register != null)
             {
-                //TODO: If the child node has a register assigned (eg. from a function call)
-                // it should be used here instead of a new assignment
-
                 //Have we already assigned a register?
                 if (current.Register.RegisterNumber < 0 && registers.Count > 0)
                 {
@@ -42,7 +39,18 @@ namespace AccCIL
             foreach (IR.InstructionElement i in current.Childnodes)
                 AllocateRegistersRecursive(i, registers, method, used, usageCount);
 
-            if (current.Register != null && current.Register.RegisterNumber > 0 && usageCount.ContainsKey(current.Register.RegisterNumber))
+            foreach(IR.InstructionElement i in current.Childnodes)
+                if (i.Register != null && usageCount.ContainsKey(i.Register.RegisterNumber))
+                {
+                    usageCount[i.Register.RegisterNumber]--;
+                    if (usageCount[i.Register.RegisterNumber] == 0)
+                    {
+                        usageCount.Remove(i.Register.RegisterNumber);
+                        registers.Push(i.Register.RegisterNumber);
+                    }
+                }
+
+            /*if (current.Register != null && current.Register.RegisterNumber > 0 && usageCount.ContainsKey(current.Register.RegisterNumber))
             {
                 usageCount[current.Register.RegisterNumber]--;
                 if (usageCount[current.Register.RegisterNumber] == 0)
@@ -50,7 +58,7 @@ namespace AccCIL
                     usageCount.Remove(current.Register.RegisterNumber);
                     registers.Push(current.Register.RegisterNumber);
                 }
-            }
+            }*/
         }
 
         public List<int> AllocateRegisters(Stack<int> registers, IR.MethodEntry method)

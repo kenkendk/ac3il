@@ -29,5 +29,10 @@ namespace AccCIL.IR
         {
             RegisterNumber = (int)number;
         }
+
+        public override string ToString()
+        {
+            return "Register $" + RegisterNumber.ToString();
+        }
     }
 }

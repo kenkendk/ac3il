@@ -251,5 +251,24 @@ namespace CILArray
             if (a[0] != b[0])
                 Math.Max(12, 12);
         }
+
+        /// <summary>
+        /// The two arrays are a reference to the same element so any change to a should be immediately visible in b
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        public static void testRef2([In] int[] a, [Out] int[] b)
+        {
+            if (a != b)
+                Math.Max(10, 10);
+            if (a[0] != b[0])
+                Math.Max(11, 11);
+            a[0]++;
+            if (a[0] != b[0])
+                Math.Max(12, 12);
+            b[0]--;
+            if (a[0] != b[0])
+                Math.Max(12, 12);
+        }
     }
 }

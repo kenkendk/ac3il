@@ -18,6 +18,7 @@ namespace SPEJIT
         public readonly TemporaryRegister _VTMP1 = new TemporaryRegister(SPEJITCompiler._TMP1);
         public readonly TemporaryRegister _VTMP2 = new TemporaryRegister(SPEJITCompiler._TMP2);
         public readonly TemporaryRegister _VTMP3 = new TemporaryRegister(SPEJITCompiler._TMP3);
+        public readonly TemporaryRegister _VTMP4 = new TemporaryRegister(SPEJITCompiler._TMP4);
 
         public const uint _RTMP0 = SPEJITCompiler._TMP0;
         public const uint _RTMP1 = SPEJITCompiler._TMP1;
@@ -461,6 +462,11 @@ namespace SPEJIT
             Conv_I4(el);
         }
 
+        public void Conv_U(InstructionElement el)
+        {
+            Conv_I4(el);
+        }
+
         public void Conv_U8(InstructionElement el)
         {
             if (el.Childnodes == null || el.Childnodes.Length != 1)
@@ -860,25 +866,40 @@ namespace SPEJIT
         {
             Type t = ValidateBinaryOp(el, false);
 
-            if (t == typeof(long))
-            {
-                //64bit multiply is emulated with a function call
-                PopStack(_ARG0 + 1, true);
-                PopStack(_ARG0, true);
-
-                m_state.RegisterCall(CompiledMethod.m_builtins["umul"]);
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
-
-                PushStack(new VirtualRegister(_ARG0));
-                return;
-            }
-
-
-            VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister r0 = PopStack(_RTMP0);
+            VirtualRegister r1 = PopStack(_RTMP1);
             VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
 
-            if (t == typeof(int))
+            if (t == typeof(long))
+            {
+
+                //64bit multiply is emulated with a function call
+
+                //We will now overwrite these two registers
+                PushStack(new TemporaryRegister(_ARG0 + 1));
+
+                if (o.RegisterNumber != _ARG0)
+                    PushStack(new TemporaryRegister(_ARG0));
+
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(_ARG0, (uint)r0.RegisterNumber, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(_ARG0 + 1, (uint)r1.RegisterNumber, 0));
+
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP4, 2)); //Signal 2 parameters for function
+                m_state.RegisterCall(CompiledMethod.m_spe_builtins["umul"]);
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
+
+                PopStack(_ARG0 + 1, true);
+
+                //If the output is _ARG0, everything is now in place, otherwise we need to move the value and restore _ARG0
+                if (o.RegisterNumber != _ARG0)
+                {
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.ori((uint)o.RegisterNumber, _ARG0, 0));
+                    PopStack(_ARG0, true);
+                }
+
+
+            }
+            else if (t == typeof(int))
             {
                 //Unfortunately, the SPU favors 16bit integer multiply, so this block emulates 32bit multiply
                 m_state.Instructions.AddRange(new SPEEmulator.OpCodes.Bases.Instruction[] {
@@ -1114,6 +1135,7 @@ namespace SPEJIT
             for (int i = 0; i < mdef.Parameters.Count; i++)
                 PopStack((uint)(register - i), true);
 
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP4, (uint)mdef.Parameters.Count)); //Signal parameter count for function
             m_state.RegisterCall(mdef);
             // i16 (set to 0xffff) should be replaced with correct value, when it is known!
             m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
@@ -1419,7 +1441,7 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, arrayPointer, 0x4)); //Times 16
             m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, _RTMP2, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
 
-            uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytypes[0]);
+            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)arraytypes[0]);
 
             //Verify that the array has the correct type and that the index is within range
             if (!el.IsIndexChecked)
@@ -1481,7 +1503,7 @@ namespace SPEJIT
             //We overwrite this register early on
             System.Diagnostics.Debug.Assert(pointer != _RTMP3);
 
-            uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytype);
+            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)arraytype);
 
             //Load the value
             m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP3, pointer, 0));
@@ -1552,7 +1574,7 @@ namespace SPEJIT
             System.Diagnostics.Debug.Assert(pointer != _RTMP0 && pointer != _RTMP2 && pointer != _RTMP3);
             System.Diagnostics.Debug.Assert(value != _RTMP1 && value != _RTMP2 && value != _RTMP3);
 
-            uint eldivsize = BuiltInMethods.get_array_elem_len_mult(arraytype);
+            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)arraytype);
 
             //Calculate the number of bytes to shift left, i.e. 16 - bytes_shift_right
             m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, pointer, 0x10)); //16 - value
@@ -1656,15 +1678,23 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP3, (uint)arrayPointer.RegisterNumber, 4)); //Times 16
             m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP3, _RTMP3, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
 
+            if (o.RegisterNumber != _ARG0)
+                PushStack(new TemporaryRegister(_ARG0));
+
             //Calculate the size of the element
             m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(_ARG0, _RTMP3, 0));
-            m_state.RegisterCall(CompiledMethod.m_builtins["get_array_elem_len_mult"]);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP4, 1)); //Signal 1 parameter for function
+            m_state.RegisterCall(CompiledMethod.m_spe_builtins["get_array_elem_len_mult"]);
             m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
 
             //Get the size of the array
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi((uint)o.RegisterNumber, _RTMP3, 0x4)); //Move word into position
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_ARG0, _ARG0, 0)); //Make two's complement
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotm((uint)o.RegisterNumber, (uint)o.RegisterNumber, _ARG0)); //Divide with elementsize
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shlqbyi(_RTMP1, _RTMP3, 0x4)); //Move word into position
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.sfi(_RTMP2, _ARG0, 0)); //Make two's complement
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotm((uint)o.RegisterNumber, _RTMP1, _RTMP2)); //Divide with elementsize
+
+            if (o.RegisterNumber != _ARG0)
+                PopStack(_ARG0, true);
+
 
             PushStack(o);
         }
@@ -1717,8 +1747,8 @@ namespace SPEJIT
         public void Dup(InstructionElement el)
         {
             VirtualRegister i = PopStack(_RTMP0);
-            VirtualRegister o1 = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register; ;
-            VirtualRegister o2 = el.DupRegister.RegisterNumber < 0 ? new TemporaryRegister(_RTMP1) : el.DupRegister; ;
+            VirtualRegister o1 = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
+            VirtualRegister o2 = el.DupRegister.RegisterNumber < 0 ? new TemporaryRegister(_RTMP1) : el.DupRegister;
 
             if (i.RegisterNumber != o1.RegisterNumber)
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.ori((uint)o1.RegisterNumber, (uint)i.RegisterNumber, 0));
@@ -1727,6 +1757,62 @@ namespace SPEJIT
 
             PushStack(o2);
             PushStack(o1);
+        }
+
+        public void Ldstr(InstructionElement el)
+        {
+            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
+            m_state.RegisterStringLoad((string)el.Instruction.Operand);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il((uint)o.RegisterNumber, 0));
+
+            PushStack(o);
+        }
+
+        public void Box(InstructionElement el)
+        {
+            //Because the register allocator cannot detect that we are using $3-$6 it uses it, so
+            //we need to push those arguments onto stack and pop them after the function call
+
+            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP2) : el.Register;
+
+            if (o.RegisterNumber != _ARG0)
+                PushStack(new TemporaryRegister(_ARG0));
+            PushStack(new TemporaryRegister(_ARG0 + 1));
+            PushStack(new TemporaryRegister(_ARG0 + 2));
+            PushStack(new TemporaryRegister(_ARG0 + 3));
+
+            KnownObjectTypes t = AccCIL.AccCIL.GetObjType(el.Childnodes[0].ReturnType);
+
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0, SPEJITCompiler.OBJECT_TABLE_INDEX)); //Object ref
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 1, (uint)KnownObjectTypes.Object)); //Type
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 2, 1u << (int)BuiltInSPEMethods.get_array_elem_len_mult((uint)t))); //Size
+
+            m_state.RegisterStringLoad(el.Childnodes[0].ReturnType.FullName);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 3, 0)); //Typename
+            
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP4, 4)); //Register 4 parameters
+            m_state.RegisterCall(CompiledMethod.m_spe_builtins["malloc"]);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
+
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP1, _ARG0, 4));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP1, _RTMP1, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_RTMP1, _RTMP1, 8));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(_RTMP2, _ARG0, 0));
+
+            PopStack(_ARG0 + 3, true);
+            PopStack(_ARG0 + 2, true);
+            PopStack(_ARG0 + 1, true);
+            if (o.RegisterNumber != _ARG0)
+                PopStack(_ARG0, true);
+
+
+            VirtualRegister value = PopStack(_RTMP0);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd((uint)value.RegisterNumber, _RTMP1, 0));
+
+            if (o.RegisterNumber != _RTMP2)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.ori((uint)o.RegisterNumber, _RTMP2, 0));
+
+            PushStack(o);
         }
 
     }
