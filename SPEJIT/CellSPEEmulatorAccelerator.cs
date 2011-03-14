@@ -46,32 +46,6 @@ namespace SPEJIT
             get { return m_compiler; }
         }
 
-        private static uint GetObjectLSAddress(uint objindex, uint[] object_table)
-        {
-            uint tablecount = object_table[0];
-
-            if (objindex <= 0 || objindex >= tablecount)
-                throw new Exception("Object not found in SPE object table");
-
-            return object_table[objindex * 4 + 2];
-        }
-
-        /*private static uint CreateObjectOnLS(Type t, object el, bool serialize, SPEEmulator.EndianBitConverter conv)
-        {
-            if (!t.IsArray)
-                throw new Exception("Unsupported object type: " + t.FullName);
-
-            //Register a new object in the object table
-            uint objindex = BuiltInSPEMethods.malloc(table, AccCIL.AccCIL.GetObjType(t.GetElementType()), CalculateObjectSize(t, el), 0);
-            if (objindex == 0)
-                throw new Exception("Not enough space in SPE object table");
-
-            if (serialize)
-                TransferObjectToLS(t, GetObjectLSAddress(objindex, conv), el, conv);
-
-            return objindex;
-        }*/
-
         private static long CalculateArraySize(Type t, object el)
         {
             if (!t.IsArray)
@@ -87,7 +61,7 @@ namespace SPEJIT
 
         private static void TransferObjectToLS(Type t, uint offset, object el, SPEEmulator.EndianBitConverter conv)
         {
-            byte[] localbuffer = SerializeObject(el);
+            byte[] localbuffer = SerializeObject(t, el);
 
             //Copy data over
             Array.Copy(localbuffer, 0, conv.Data, offset, localbuffer.Length);
@@ -155,13 +129,12 @@ namespace SPEJIT
             return storage;
         }
 
-        private static byte[] SerializeObject(object o)
+        private static byte[] SerializeObject(Type t, object o)
         {
             if (o == null)
                 throw new ArgumentNullException("o");
 
-            Type t = o.GetType();
-            if (t.IsPrimitive) //TODO: Boxed items?
+            if (t.IsPrimitive)
                 throw new Exception("Cannot serialize primitives");
             
             if (t.IsArray)
@@ -231,19 +204,66 @@ namespace SPEJIT
                 
                 return localbuffer;
             }
+            else if (o != null && o.GetType().IsPrimitive)
+            {
+                //Boxed element, just copy it
+                AccCIL.KnownObjectTypes objtype = AccCIL.AccCIL.GetObjType(o.GetType());
+                SPEEmulator.EndianBitConverter ebc = new SPEEmulator.EndianBitConverter(new byte[1u << (int)BuiltInSPEMethods.get_array_elem_len_mult((uint)objtype)]);
+
+                switch (objtype)
+                {
+                    case AccCIL.KnownObjectTypes.Boolean:
+                        ebc.WriteByte((byte)((bool)o ? 1 : 0));
+                        break;
+                    case AccCIL.KnownObjectTypes.SByte:
+                        ebc.WriteByte((byte)((sbyte)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.Byte:
+                        ebc.WriteByte((byte)((byte)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.UShort:
+                        ebc.WriteUShort((ushort)((ushort)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.Short:
+                        ebc.WriteUShort((ushort)((short)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.UInt:
+                        ebc.WriteUInt((uint)((uint)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.Int:
+                        ebc.WriteUInt((uint)((int)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.ULong:
+                        ebc.WriteULong((ulong)((ulong)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.Long:
+                        ebc.WriteULong((ulong)((long)o));
+                        break;
+                    case AccCIL.KnownObjectTypes.Float:
+                        ebc.WriteFloat((float)o);
+                        break;
+                    case AccCIL.KnownObjectTypes.Double:
+                        ebc.WriteDouble((double)o);
+                        break;
+                    default:
+                        throw new InvalidProgramException();
+                }
+
+                return ebc.Data;
+            }
             else
             {
                 throw new Exception("Serialization not supported for type: " + t.FullName);
             }
         }
 
-        private static object TransferObjectFromLS(uint[] object_table, uint objindex, SPEEmulator.EndianBitConverter conv, object storage)
+        private static object TransferObjectFromLS(ObjectTableWrapper objtable, uint objindex, SPEEmulator.EndianBitConverter conv, object storage)
         {
             //Get offset and verify index etc
-            uint offset = GetObjectLSAddress(objindex, object_table);
-            uint size = object_table[objindex * 4 + 1];
-            AccCIL.KnownObjectTypes objt = (AccCIL.KnownObjectTypes)(object_table[objindex* 4] & 0xff);
-            uint typestring_index = object_table[objindex * 4] >> 16;
+            uint offset = objtable[objindex].Offset;
+            uint size = objtable[objindex].Size;
+            AccCIL.KnownObjectTypes objt = objtable[objindex].KnownType;
+            uint typestring_index = objtable[objindex].Type;
             Type t;
 
             if (typestring_index == 0)
@@ -271,7 +291,7 @@ namespace SPEJIT
                 }
             }
             else
-                t = Type.GetType((string)TransferObjectFromLS(object_table, typestring_index, conv, null));
+                t = Type.GetType((string)TransferObjectFromLS(objtable, typestring_index, conv, null));
 
             if (t.IsPrimitive)
                 return ReadValue(t, conv, offset);
@@ -367,16 +387,21 @@ namespace SPEJIT
                 throw new Exception("Unsupported argument type: " + t.FullName);
         }
 
-        private static uint CreateObjectOnLS(uint[] object_table, Type t, object element)
+        private static uint CreateObjectOnLS(ObjectTableWrapper objtable, Type t, object element)
         {
-            if (t.IsPrimitive)
+            if (element == null)
+                return 0;
+            else if (t.IsPrimitive)
+                throw new Exception("Unexpected primitive?");
+            else if (element.GetType().IsPrimitive)
             {
-                throw new Exception("Primitive?");
+                //Boxed object transfer
+                return objtable.AddObject(AccCIL.KnownObjectTypes.Object, 1u << (int)BuiltInSPEMethods.get_array_elem_len_mult((uint)AccCIL.AccCIL.GetObjType(element.GetType())), element.GetType().FullName);
             }
             else if (t == typeof(string))
-                return BuiltInSPEMethods.malloc(object_table, AccCIL.KnownObjectTypes.String, (uint)System.Text.Encoding.UTF8.GetByteCount((string)element), 0);
+                return objtable.AddObject(AccCIL.KnownObjectTypes.String, (uint)System.Text.Encoding.UTF8.GetByteCount((string)element), null);
             else if (t.IsArray)
-                return BuiltInSPEMethods.malloc(object_table, AccCIL.AccCIL.GetObjType(t.GetElementType()), (uint)CalculateArraySize(t, element), 0);
+                return objtable.AddObject(AccCIL.AccCIL.GetObjType(t.GetElementType()), (uint)CalculateArraySize(t, element), null);
             else
                 throw new Exception("Unexpected type: " + t.FullName);
         }
@@ -411,11 +436,12 @@ namespace SPEJIT
             uint lsoffset = (uint)spe.LS.Length - (16 * 8); 
             //The -(16 * 8) is used to prevent the bootloader stack setup from overwriting the arguments
 
-            uint[] object_table = ReadObjectTable(conv);
+            ObjectTableWrapper objtable = ReadObjectTable(conv);
 
             Type[] types = m_loadedMethodTypes;
             Dictionary<uint, int> addedObjects = new Dictionary<uint, int>();
             Dictionary<object, uint> objref = new Dictionary<object, uint>();
+            Dictionary<uint, uint> nonSerialized = new Dictionary<uint, uint>();
 
             for (int i = args.Length - 1; i >= 0; i--)
             {
@@ -429,21 +455,26 @@ namespace SPEJIT
                     else
                     {
                         if (objref.ContainsKey(args[i]))
+                        {
                             objindex = objref[args[i]];
+                            if (nonSerialized.ContainsKey(objindex))
+                            {
+                                nonSerialized.Remove(objindex);
+                                TransferObjectToLS(types[i], objtable[objindex].Offset, args[i], conv);
+                            }
+                        }
                         else
                         {
-                            if (types[i].IsArray)
-                            {
-                                objindex = CreateObjectOnLS(object_table, types[i], args[i]);
-                                if (m_typeSerializeIn[i])
-                                    TransferObjectToLS(types[i], GetObjectLSAddress(objindex, object_table), args[i], conv);
-                            }
+                            objindex = CreateObjectOnLS(objtable, types[i], args[i]);
+                            objtable[objindex].Refcount = 1;
+                            if (m_typeSerializeIn[i])
+                                TransferObjectToLS(types[i], objtable[objindex].Offset, args[i], conv);
                             else
-                                throw new Exception("Unsupported type: " + types[i].FullName);
+                                nonSerialized.Add(objindex, 0);
 
                             addedObjects.Add(objindex, i);
                             objref[args[i]] = objindex;
-                            
+
                         }
                     }
 
@@ -459,7 +490,7 @@ namespace SPEJIT
             conv.WriteUInt(12, 0);
 
             //Write back the object table
-            WriteObjectTable(conv, object_table);
+            WriteObjectTable(conv, objtable);
 
             spe.RegisterCallbackHandler(SPEJITCompiler.STOP_METHOD_CALL & 0xff, spe_MissingMethodCallback);
 
@@ -482,26 +513,21 @@ namespace SPEJIT
 
             spe.UnregisterCallbackHandler(SPEJITCompiler.STOP_METHOD_CALL & 0xff);
 
-            object_table = ReadObjectTable(conv);
+            objtable = ReadObjectTable(conv);
 
             //Now extract data back into the objects that are byref
             foreach (KeyValuePair<uint, int> k in addedObjects)
             {
-                if (m_loadedMethodTypes[k.Value].IsArray)
-                {
-                    if (m_typeSerializeOut[k.Value])
-                        TransferObjectFromLS(object_table, k.Key, conv, args[k.Value]);
-                }
-                else
-                    throw new Exception("Unexpected ref object");
+                if (m_typeSerializeOut[k.Value])
+                    TransferObjectFromLS(objtable, k.Key, conv, args[k.Value]);
 
                 //Remove the entry from the LS object table
-                BuiltInSPEMethods.free(object_table, k.Key);
+                objtable.RemoveObject(k.Key);
             }
 
 
             //Write back the object table
-            WriteObjectTable(conv, object_table);
+            WriteObjectTable(conv, objtable);
 
             Type rtype = typeof(T);
 
@@ -521,7 +547,7 @@ namespace SPEJIT
                 return (T)ReadValue(rtype, conv, 0);
         }
 
-        private static uint[] ReadObjectTable(SPEEmulator.EndianBitConverter conv)
+        private static ObjectTableWrapper ReadObjectTable(SPEEmulator.EndianBitConverter conv)
         {
             uint object_table_size = conv.ReadUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET);
             SPEEmulator.EndianBitConverter obj_tb_tmp = new SPEEmulator.EndianBitConverter(new byte[(object_table_size + 1) * 16]);
@@ -530,15 +556,38 @@ namespace SPEJIT
             for (int i = 0; i < object_table.Length; i++)
                 object_table[i] = obj_tb_tmp.ReadUInt();
             
-            return object_table;
+            ObjectTableWrapper objtable = new ObjectTableWrapper(object_table);
+
+            foreach (var v in objtable.Where(c => c.KnownType == AccCIL.KnownObjectTypes.String))
+            {
+                byte[] localdata = new byte[v.AlignedSize];
+                Array.Copy(conv.Data, v.Offset, localdata, 0, localdata.Length);
+
+                objtable.Strings.Add(System.Text.Encoding.UTF8.GetString(localdata, 0, (int)v.Size), v.Index);
+            }
+
+            return objtable;
         }
 
-        private static void WriteObjectTable(SPEEmulator.EndianBitConverter conv, uint[] object_table)
+        private static void WriteObjectTable(SPEEmulator.EndianBitConverter conv, ObjectTableWrapper objtable)
         {
-            SPEEmulator.EndianBitConverter obj_tb_tmp = new SPEEmulator.EndianBitConverter(new byte[object_table.Length * 4]);
-            foreach (uint u in object_table)
+            SPEEmulator.EndianBitConverter obj_tb_tmp = new SPEEmulator.EndianBitConverter(new byte[objtable.Data.Length * 4]);
+            foreach (uint u in objtable.Data)
                 obj_tb_tmp.WriteUInt(u);
             Array.Copy(obj_tb_tmp.Data, 0, conv.Data, SPEJITCompiler.OBJECT_TABLE_OFFSET, obj_tb_tmp.Data.Length);
+
+            foreach (KeyValuePair<string, uint> k in objtable.Strings)
+            {
+                ObjectTableEntry e = objtable[k.Value];
+
+                System.Diagnostics.Debug.Assert(e.KnownType == AccCIL.KnownObjectTypes.String);
+                System.Diagnostics.Debug.Assert(e.Size == k.Key.Length);
+
+                byte[] localdata = new byte[e.AlignedSize];
+                System.Text.Encoding.UTF8.GetBytes(k.Key, 0, k.Key.Length, localdata, 0);
+                
+                Array.Copy(localdata, 0, conv.Data, e.Offset, localdata.Length);
+            }
         }
 
 
@@ -580,13 +629,13 @@ namespace SPEJIT
             uint sp_offset = arg_base;
             object @this = null;
 
-            uint[] object_table = ReadObjectTable(c);
+            ObjectTableWrapper objtable = ReadObjectTable(c);
             
             if (!m.IsStatic)
             {
                 Type argtype = m.DeclaringType;
                 uint objindex = (uint)ReadValue(argtype, c, sp_offset);
-                @this = TransferObjectFromLS(object_table, objindex, c, null);
+                @this = TransferObjectFromLS(objtable, objindex, c, null);
 
                 transferred.Add(objindex, @this);
 
@@ -606,7 +655,7 @@ namespace SPEJIT
                         arguments[i] = transferred[objindx];
                     else
                     {
-                        arguments[i] = TransferObjectFromLS(object_table, objindx, c, null);
+                        arguments[i] = TransferObjectFromLS(objtable, objindx, c, null);
                         transferred.Add(objindx, arguments[i]);
                     }
                 }
@@ -620,16 +669,13 @@ namespace SPEJIT
             foreach (KeyValuePair<uint, object> t in transferred)
                 if (t.Value != null)
                 {
-                    Type vt = t.Value.GetType();
+                    Type vt = objtable[t.Key].KnownType == AccCIL.KnownObjectTypes.Object ? typeof(object) : AccCIL.AccCIL.GetObjType(objtable[t.Key].KnownType);
                     //Strings are imutable, os there is no reason to transfer them back
                     if (vt == typeof(string))
                         continue;
 
-                    uint lsoffset = GetObjectLSAddress(t.Key, object_table);
-                    if (vt.IsPrimitive)
-                        WriteValue(vt, c, lsoffset, t.Value);
-                    else
-                        TransferObjectToLS(vt, lsoffset, t.Value, c);
+                    uint lsoffset = objtable[t.Key].Offset;
+                    TransferObjectToLS(vt, lsoffset, t.Value, c);
 
                     if (t.Value == result)
                         resultIndex = (int)t.Key;
@@ -644,9 +690,10 @@ namespace SPEJIT
                     if (resultIndex < 0)
                     {
 
-                        resultIndex = (int)CreateObjectOnLS(object_table, m.ReturnType, result);
-                        TransferObjectToLS(m.ReturnType, GetObjectLSAddress((uint)resultIndex, object_table), result, c);
-                        WriteObjectTable(c, object_table);
+                        resultIndex = (int)CreateObjectOnLS(objtable, m.ReturnType, result);
+                        objtable[(uint)resultIndex].Refcount = 1;
+                        TransferObjectToLS(m.ReturnType, objtable[(uint)resultIndex].Offset, result, c);
+                        WriteObjectTable(c, objtable);
                     }
 
                     WriteValue(m.ReturnType, c, arg_base, (uint)resultIndex);

@@ -71,7 +71,7 @@ namespace SPEJIT
             }
         }
 
-        internal static uint malloc(uint[] objtable, AccCIL.KnownObjectTypes type, uint size, uint typestring_offset)
+        internal static uint malloc(uint[] objtable, AccCIL.KnownObjectTypes type, uint size, uint typestring_index)
         {
             if (objtable[1] >= objtable[0])
             {
@@ -96,13 +96,18 @@ namespace SPEJIT
             uint nextel = objtable[1];
             objtable[2] = nextoffset + requiredSpace;
 
-            uint realtype = (uint)type;
+            uint realtype;
 
-            //For objects, we use the upper 16 bits to encode the typestring offset
-            if (type == AccCIL.KnownObjectTypes.Object)
-                realtype = typestring_offset << 16 | realtype;
+            //For objects, we use the upper 16 bits to encode the typestring index
+            if (typestring_index == 0)
+                realtype = (uint)type & 0xffu;
+            else
+            {
+                realtype = (typestring_index << 16) | ((uint)type & 0xffu);
+                objtable[typestring_index * 4 + 3]++; //Increment refcount
+            }
 
-            uint n = nextel * 4; //+4 is for the header
+            uint n = nextel * 4;
 
             objtable[1] = objtable[n + 3];
 

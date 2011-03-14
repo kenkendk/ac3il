@@ -263,12 +263,14 @@ namespace CILArray
                 Math.Max(10, 10);
             if (a[0] != b[0])
                 Math.Max(11, 11);
+            if (a[0] != 42)
+                Math.Max(12, 12);
             a[0]++;
             if (a[0] != b[0])
-                Math.Max(12, 12);
+                Math.Max(13, 13);
             b[0]--;
             if (a[0] != b[0])
-                Math.Max(12, 12);
+                Math.Max(14, 14);
         }
     }
 }

@@ -823,11 +823,17 @@ namespace SPEJIT
             PushStack(new VirtualRegister(_LV0 + (uint)((Mono.Cecil.Cil.VariableReference)el.Instruction.Operand).Index));
         }
 
-        public void Br_S(InstructionElement el)
+        public void Br(InstructionElement el)
         {
             m_state.RegisterBranch(((Mono.Cecil.Cil.Instruction)el.Instruction.Operand));
             m_state.Instructions.Add(new SPEEmulator.OpCodes.br(_RTMP0, 0xffff));
         }
+
+        public void Br_s(InstructionElement el)
+        {
+            Br(el);
+        }
+
 
         public void Sub(InstructionElement el)
         {

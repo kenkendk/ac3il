@@ -31,6 +31,17 @@ namespace CILFac
             Console.WriteLine(string.Format("Hello world: {0}", a));
         }
 
+        public static void WritelineTest2(object a)
+        {
+            Console.WriteLine("Hello world: {0}", a);
+        }
+
+        public static void WritelineTest3(int a)
+        {
+            //This will invoke the params version
+            Console.WriteLine("Hello world: {0}, {0}, {0}, {0}", a, a, a, a);
+        }
+
         public static void TestArithmetics()
         {
             int ai;

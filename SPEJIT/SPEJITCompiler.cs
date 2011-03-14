@@ -167,47 +167,6 @@ namespace SPEJIT
             }
         }
 
-        private static uint[] CreateObjectTable()
-        {
-            uint[] table = new uint[OBJECT_TABLE_SIZE * 4];
-
-            //The size allocated for bootloader and call handler
-            int BOOTLOADER_LENGTH = BOOT_LOADER.Length + (4 - BOOT_LOADER.Length % 4) % 4;
-            BOOTLOADER_LENGTH += CALL_HANDLER.Length + (4 - CALL_HANDLER.Length % 4) % 4;
-            BOOTLOADER_LENGTH *= 4;
-
-            //Table header
-            table[0] = OBJECT_TABLE_SIZE; //Size of table
-            table[1] = 3; //Next free
-            table[2] = OBJECT_TABLE_OFFSET; //Next offset
-            table[3] = 256 * 1024; //Size of mem
-
-            table[4] = (uint)KnownObjectTypes.UInt; //Type -> Fake type allows us to use it with malloc
-            table[5] = (uint)(table.Length * 4); //Size
-            table[6] = OBJECT_TABLE_OFFSET; //Pointer
-            table[7] = 1; //Refcount
-
-            table[2] += table[5];
-
-            table[8] = (uint)KnownObjectTypes.Bootloader; //Type
-            table[9] = (uint)BOOTLOADER_LENGTH; //Size
-            table[10] = table[2]; //Pointer
-            table[11] = 1; //Refcount
-
-            table[2] += table[9];
-
-
-            for (uint i = table[1]; i < OBJECT_TABLE_SIZE; i++)
-            {
-                table[i * 4] = (uint)KnownObjectTypes.Free;
-                table[i * 4 + 1] = (uint)KnownObjectTypes.Free;
-                table[i * 4 + 2] = (uint)KnownObjectTypes.Free;
-                table[i * 4 + 3] = (uint)i + 1;
-            }
-
-            return table;
-        }
-
         /// <summary>
         /// Emits an instruction stream.
         /// </summary>
@@ -239,10 +198,19 @@ namespace SPEJIT
                         builtins.Remove(mr.Name);
                     }
 
+            //The size allocated for bootloader and call handler
+            int BOOTLOADER_LENGTH = BOOT_LOADER.Length + (4 - BOOT_LOADER.Length % 4) % 4;
+            BOOTLOADER_LENGTH += CALL_HANDLER.Length + (4 - CALL_HANDLER.Length % 4) % 4;
+            BOOTLOADER_LENGTH *= 4;
 
-            uint[] object_table = CreateObjectTable();
+            ObjectTableWrapper objtable = new ObjectTableWrapper(OBJECT_TABLE_SIZE, 256 * 1024);
+            uint objtableindex = objtable.AddObject(KnownObjectTypes.UInt, (uint)(OBJECT_TABLE_SIZE * 16), null);
+            uint bootloadertableindex = objtable.AddObject(KnownObjectTypes.Bootloader, (uint)BOOTLOADER_LENGTH, null);
 
-            uint method_object_offset = object_table[1];
+            objtable[objtableindex].Refcount = 1;
+            objtable[bootloadertableindex].Refcount = 1;
+
+            uint method_object_offset = objtable.NextFree;
 
             Dictionary<string, int> stringLiteralCounts = new Dictionary<string, int>();
             foreach (CompiledMethod cm in methods)
@@ -260,36 +228,36 @@ namespace SPEJIT
                 cm.Prolouge = GenerateProlouge(cm);
                 cm.Epilouge = GenerateEpilouge(cm);
 
-                uint index = BuiltInSPEMethods.malloc(object_table, KnownObjectTypes.Code, (uint)cm.TotalSize, object_table[2]);
-
-                methodOffsets.Add(cm, (int)object_table[index * 4 + 2]);
+                uint index = objtable.AddObject(KnownObjectTypes.Code, (uint)cm.TotalSize, null);
+                objtable[index].Refcount = 1;
+                methodOffsets.Add(cm, (int)objtable[index].Offset);
             }
 
             //Register all string literals as objects
             Dictionary<string, uint> stringLiteralRefs = new Dictionary<string, uint>();
             foreach (KeyValuePair<string, int> w in stringLiteralCounts)
             {
-                uint index = BuiltInSPEMethods.malloc(object_table, KnownObjectTypes.String, (uint)System.Text.Encoding.UTF8.GetByteCount(w.Key), 0);
+                uint index = objtable.AddObject(KnownObjectTypes.String, (uint)System.Text.Encoding.UTF8.GetByteCount(w.Key), null);
                 stringLiteralRefs.Add(w.Key, index);
 
                 //Assign the correct ref count
-                object_table[w.Value * 4 + 3] = (uint)stringLiteralCounts[w.Key];
+                objtable[index].Refcount = (uint)stringLiteralCounts[w.Key];
             }
 
             //Patch all code object types to have a string reference
             foreach (CompiledMethod cm in methods)
             {
                 uint index = (uint)(methods.IndexOf(cm) + method_object_offset);
-                System.Diagnostics.Debug.Assert((KnownObjectTypes)(object_table[index * 4] & 0xff) == KnownObjectTypes.Code);
-                object_table[index * 4] = stringLiteralRefs[cm.Fullname] << 16 | (uint)KnownObjectTypes.Code;
+                System.Diagnostics.Debug.Assert(objtable[index].KnownType == KnownObjectTypes.Code);
+                objtable[index].Type = stringLiteralRefs[cm.Fullname];
             }
 
             //Write a placeholder for the startup arguments
             byte[] zeroentry = new byte[16];
             outstream.Write(zeroentry, 0, 16);
 
-            SPEEmulator.EndianBitConverter c = new SPEEmulator.EndianBitConverter(new byte[object_table.Length * 4]);
-            foreach (var u in object_table)
+            SPEEmulator.EndianBitConverter c = new SPEEmulator.EndianBitConverter(new byte[objtable.Data.Length * 4]);
+            foreach (var u in objtable.Data)
                 c.WriteUInt(u);
 
             outstream.Write(c.Data, 0, c.Data.Length);
@@ -297,15 +265,10 @@ namespace SPEJIT
             if (assemblyOutput != null)
             {
                 assemblyOutput.WriteLine("### Object table ###");
-                assemblyOutput.WriteLine("#Size {0}, nextFree: {1}, nextOffset: {2}, memSize: {3}", object_table[0], object_table[1], object_table[2], object_table[3]);
+                assemblyOutput.WriteLine("#Size {0}, nextFree: {1}, nextOffset: {2}, memSize: {3}", objtable.Size, objtable.NextFree, objtable.NextOffset, objtable.Memsize);
 
-                for(int i = 4; i < object_table.Length; i+= 4)
-                {
-                    if (object_table[i] == (uint)KnownObjectTypes.Free)
-                        assemblyOutput.WriteLine("# [{0}] Free, next {1}", (i / 4), object_table[i + 3]);
-                    else
-                        assemblyOutput.WriteLine("# [{0}] Type {1}:{2}, size: {3}, offset: 0x{4:x4}, refCount: {5}", (i / 4), (KnownObjectTypes)(object_table[i] & 0xff), (object_table[i] >> 16), object_table[i + 1], object_table[i + 2], object_table[i + 3]);
-                }
+                foreach (var e in objtable)
+                    assemblyOutput.WriteLine(e.ToString());
             }
 
             bootloader_offset = (uint)outstream.Length;
@@ -336,9 +299,9 @@ namespace SPEJIT
 
                 uint index = (uint)methods.IndexOf(cm) + method_object_offset;
 
-                System.Diagnostics.Debug.Assert((KnownObjectTypes)(object_table[index * 4] & 0xff) == KnownObjectTypes.Code);
-                System.Diagnostics.Debug.Assert(object_table[index * 4 + 2] == (uint)outstream.Length);
-                System.Diagnostics.Debug.Assert((object_table[index * 4] >> 16) == stringLiteralRefs[cm.Fullname]);
+                System.Diagnostics.Debug.Assert(objtable[index].KnownType == KnownObjectTypes.Code);
+                System.Diagnostics.Debug.Assert(objtable[index].Offset == (uint)outstream.Length);
+                System.Diagnostics.Debug.Assert(objtable[index].Type == stringLiteralRefs[cm.Fullname]);
 
                 int constantOffsets = (cm.Instructions.Count + cm.Epilouge.Count) + (4 - (cm.Instructions.Count + cm.Prolouge.Count + cm.Epilouge.Count) % 4) % 4;
                 for(int i = 0; i < constants.Count; i++)
@@ -400,7 +363,7 @@ namespace SPEJIT
                         assemblyOutput.WriteLine("Constant: " + s);
                 }
 
-                System.Diagnostics.Debug.Assert(object_table[index * 4 + 1] + object_table[index * 4 + 2] == (uint)outstream.Length);
+                System.Diagnostics.Debug.Assert(objtable[index].Size + objtable[index].Offset == (uint)outstream.Length);
 
 
                 if (assemblyOutput != null)
@@ -415,17 +378,17 @@ namespace SPEJIT
 
             foreach (KeyValuePair<string, uint> w in stringLiteralRefs)
             {
-                System.Diagnostics.Debug.Assert((KnownObjectTypes)object_table[w.Value * 4] == KnownObjectTypes.String);
-                System.Diagnostics.Debug.Assert(object_table[w.Value * 4 + 2] == (uint)outstream.Length);
+                System.Diagnostics.Debug.Assert(objtable[w.Value].KnownType == KnownObjectTypes.String);
+                System.Diagnostics.Debug.Assert(objtable[w.Value].Offset == (uint)outstream.Length);
 
                 byte[] data = System.Text.Encoding.UTF8.GetBytes(w.Key);
-                System.Diagnostics.Debug.Assert(object_table[w.Value * 4 + 1] == (uint)data.Length);
+                System.Diagnostics.Debug.Assert(objtable[w.Value].Size == (uint)data.Length);
 
                 outstream.Write(data, 0, data.Length);
                 outstream.Write(zeroentry, 0, (16 - data.Length % 16) % 16);
 
                 if (assemblyOutput != null)
-                    assemblyOutput.WriteLine("0x{0:x4}: \"{1}\" -> {2}", object_table[w.Value * 4 + 2], w.Key, w.Value);
+                    assemblyOutput.WriteLine("0x{0:x4}: \"{1}\" -> {2}", objtable[w.Value].Offset, w.Key, w.Value);
             }
 
             return callpoints;
