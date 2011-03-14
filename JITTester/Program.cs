@@ -94,9 +94,6 @@ namespace JITTester
                 AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
 
-                /*if (acc.Accelerate<object, int>(CILFac.Fac.UnboxTest, (object)42) != 42)
-                    throw new Exception("Unbox failed");*/
-
                 //acc.Accelerate(CILFac.Fac.WritelineTest3, 42);
 
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
@@ -130,8 +127,8 @@ namespace JITTester
             n = new int[] { 42 };
             acc.Accelerate(CILArray.ArrayTest.testRef2, n, n);
             
-            /*if (acc.Accelerate<object, int>(CILFac.Fac.UnboxTest, (object)42) != 42)
-                throw new Exception("Unbox failed");*/
+            if (acc.Accelerate<object, int>(CILFac.Fac.UnboxTest, (object)42) != 42)
+                throw new Exception("Unbox failed");
 
             acc.Accelerate(CILFac.Fac.WritelineTest, 42);
             acc.Accelerate(CILFac.Fac.WritelineTest2, (object)42);

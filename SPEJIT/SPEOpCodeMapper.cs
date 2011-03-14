@@ -1509,8 +1509,6 @@ namespace SPEJIT
             //We overwrite this register early on
             System.Diagnostics.Debug.Assert(pointer != _RTMP3);
 
-            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)arraytype);
-
             //Load the value
             m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP3, pointer, 0));
 
@@ -1518,7 +1516,23 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP1, pointer, 0xfu)); //Use only the lower bits
             m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqby(_RTMP3, _RTMP3, _RTMP1)); //Rotate into prefered slot
 
-            bool signed = arraytype == KnownObjectTypes.SByte || arraytype == KnownObjectTypes.Short || arraytype == KnownObjectTypes.Int || arraytype == KnownObjectTypes.Long;
+            ExpandValue(arraytype, _RTMP3, output);
+        }
+
+        /// <summary>
+        /// Function that expands the value in a register to fit onto the stack.
+        /// Note that this function is expected to be the last in a sequence and as
+        /// such destroys all temporary registers.
+        /// </summary>
+        /// <param name="type">The element type</param>
+        /// <param name="valueRegister">The register that holds the value</param>
+        /// <param name="outputregister">The register into which the expanded value is stored</param>
+        private void ExpandValue(KnownObjectTypes type, uint valueRegister, uint outputregister)
+        {
+            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)type);
+            bool signed = type == KnownObjectTypes.SByte || type == KnownObjectTypes.Short || type == KnownObjectTypes.Int || type == KnownObjectTypes.Long;
+
+            uint tmpReg = valueRegister == _RTMP0 ? _RTMP1 : _RTMP0;
 
             if (signed)
             {
@@ -1536,14 +1550,14 @@ namespace SPEJIT
 
                 //Load the new value into the register
                 m_state.RegisterConstantLoad(mask, mask); //Load element into register
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_RTMP0, 0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(output, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(tmpReg, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(outputregister, valueRegister, valueRegister, tmpReg)); //Move word into position (should be 4 bytes)
 
                 //Since the element must be stored as int32 on stack, we must convert it and sign extend it
                 if (eldivsize <= 0)
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xsbh(output, output)); //Convert to halfword
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xsbh(outputregister, outputregister)); //Convert to halfword
                 if (eldivsize <= 1)
-                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xshw(output, output)); //Convert to word
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.xshw(outputregister, outputregister)); //Convert to word
             }
             else
             {
@@ -1561,8 +1575,8 @@ namespace SPEJIT
 
                 //Load the new value into the register
                 m_state.RegisterConstantLoad(mask, mask); //Load element into register
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(_RTMP0, 0));
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(output, _RTMP3, _RTMP3, _RTMP0)); //Move word into position (should be 4 bytes)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqr(tmpReg, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shufb(outputregister, valueRegister, valueRegister, tmpReg)); //Move word into position (should be 4 bytes)
             }
         }
 
@@ -1788,6 +1802,7 @@ namespace SPEJIT
             PushStack(new TemporaryRegister(_ARG0 + 3));
 
             KnownObjectTypes t = AccCIL.AccCIL.GetObjType(el.Childnodes[0].ReturnType);
+            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)t);
 
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0, SPEJITCompiler.OBJECT_TABLE_INDEX)); //Object ref
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 1, (uint)KnownObjectTypes.Object)); //Type
@@ -1813,10 +1828,54 @@ namespace SPEJIT
 
 
             VirtualRegister value = PopStack(_RTMP0);
-            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd((uint)value.RegisterNumber, _RTMP1, 0));
+
+            //For smaller values, we must move them into place
+            if (eldivsize < 2)
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_RTMP3, (uint)value.RegisterNumber, eldivsize == 0 ? 3u : 2u));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd(_RTMP3, _RTMP1, 0));
+            }
+            else
+            {
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.stqd((uint)value.RegisterNumber, _RTMP1, 0));
+            }
 
             if (o.RegisterNumber != _RTMP2)
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.ori((uint)o.RegisterNumber, _RTMP2, 0));
+
+            PushStack(o);
+        }
+
+        public void Unbox_Any(InstructionElement el)
+        {
+            VirtualRegister value = PopStack(_RTMP0);
+            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP2) : el.Register;
+            string typename = ((Mono.Cecil.TypeReference)el.Instruction.Operand).FullName;
+
+            //Test that the array is not null
+            //TODO: Jump to an NullException raise function
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz((uint)value.RegisterNumber, 0));
+
+            //Get the object table entry
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP1, (uint)value.RegisterNumber, 0x4)); //Times 16
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP1, _RTMP1, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
+
+            //Get the typename index
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotmi(_RTMP2, _RTMP1, (-16 & 0x7f)));
+
+            m_state.RegisterStringLoad(typename);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP3, 0)); //Load expeceted typename index
+
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ceq(_RTMP2, _RTMP3, _RTMP2)); //Compare typename index values
+
+            //TODO: Throw InvalidCastException
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_RTMP2, 0));
+
+            //Ok, the type checks out, load it onto stack
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_RTMP2, _RTMP1, 8));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, _RTMP2, 0));
+
+            ExpandValue(AccCIL.AccCIL.GetObjType(Type.GetType(typename)), _RTMP2, (uint)o.RegisterNumber);
 
             PushStack(o);
         }

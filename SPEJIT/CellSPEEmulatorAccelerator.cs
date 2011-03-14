@@ -702,18 +702,5 @@ namespace SPEJIT
             
             return true;
         }
-
-        /*private static string ReadString(SPEEmulator.EndianBitConverter conv, uint objindex, uint[] object_table)
-        {
-            uint size = object_table[objindex * 4 + 1];
-            uint offset = object_table[objindex * 4 + 2];
-            if ((AccCIL.KnownObjectTypes)(object_table[objindex * 4] & 0xff) != AccCIL.KnownObjectTypes.String)
-                throw new Exception("Attempted to read string from object which was not string: " + ((AccCIL.KnownObjectTypes)(object_table[objindex * 4] & 0xff)).ToString());
-
-            byte[] localdata = new byte[(size + 15 >> 4) << 4];
-            Array.Copy(conv.Data, offset, localdata, 0, size);
-
-            return System.Text.Encoding.UTF8.GetString(localdata, 0, (int)size);
-        }*/
     }
 }

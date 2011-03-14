@@ -176,11 +176,15 @@ namespace AccCIL.IR
 
                         //These are not fixed yet
                         case Mono.Cecil.Cil.Code.Mkrefany:
-                        case Mono.Cecil.Cil.Code.Unbox_Any:
                         case Mono.Cecil.Cil.Code.Ldelem_Any:
                         case Mono.Cecil.Cil.Code.Ldsfld:
                         case Mono.Cecil.Cil.Code.Ldfld:
                             throw new Exception("The opcode is not supported for Push1: " + Instruction.OpCode.Code);
+
+                        case Mono.Cecil.Cil.Code.Unbox_Any:
+                            ReturnType = Type.GetType(((Mono.Cecil.TypeReference)Instruction.Operand).FullName);
+                            IsReturnTypeRef = false;
+                            break;
 
                         default:
                             throw new Exception("Unexpected Push1 operation: " + Instruction.OpCode.Code);
