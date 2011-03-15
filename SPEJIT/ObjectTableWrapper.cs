@@ -5,7 +5,7 @@ using System.Text;
 
 namespace SPEJIT
 {
-    internal class ObjectTableEntry
+    public class ObjectTableEntry
     {
         private uint m_index;
         private uint m_offset;
@@ -39,7 +39,7 @@ namespace SPEJIT
     /// <summary>
     /// A helper class that provides typesafe access to the SPE object table
     /// </summary>
-    internal class ObjectTableWrapper : IEnumerable<ObjectTableEntry>
+    public class ObjectTableWrapper : IEnumerable<ObjectTableEntry>
     {
         private Dictionary<string, uint> m_strings;
         private uint[] m_data;

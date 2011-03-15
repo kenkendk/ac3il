@@ -54,7 +54,7 @@ namespace AccCIL
                     _assemblyDefinitionCache.Add(assemblyName, asm = AssemblyFactory.GetAssembly(System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName)).Location));
             }
 
-            return FindMethod(asm, mr.DeclaringType.FullName + "." + mr.Name, types);
+            return FindMethod(asm, mr.DeclaringType.FullName + "::" + mr.Name, types);
         }
 
         public static MethodDefinition FindMethod(AssemblyDefinition asm, string name, Type[] args)
@@ -71,7 +71,7 @@ namespace AccCIL
                         foreach (TypeDefinition tref in mod.Types)
                             foreach (MethodDefinition mdef in tref.Methods)
                             {
-                                string functioname = mdef.DeclaringType.FullName + "." + mdef.Name;
+                                string functioname = mdef.DeclaringType.FullName + "::" + mdef.Name;
                                 List<MethodDefinition> lm;
                                 methodLookup.TryGetValue(functioname, out lm);
                                 if (lm == null)
@@ -102,7 +102,7 @@ namespace AccCIL
 
         public static System.Reflection.MethodInfo FindReflectionMethod(MethodReference calledmethod)
         {
-            string methodname = calledmethod.DeclaringType.FullName + "." + calledmethod.Name;
+            string methodname = calledmethod.DeclaringType.FullName + "::" + calledmethod.Name;
             string assemblyName = FindAssemblyName(calledmethod);
             System.Reflection.Assembly asm = System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName));
             foreach (var mod in asm.GetModules())
@@ -145,7 +145,7 @@ namespace AccCIL
             foreach (ModuleDefinition mod in asm.Modules)
                 foreach (TypeDefinition tref in mod.Types)
                     foreach (MethodDefinition mdef in tref.Methods)
-                        functionLookup.Add(mdef.DeclaringType.FullName + "." + mdef.Name, mdef);
+                        functionLookup.Add(mdef.DeclaringType.FullName + "::" + mdef.Name, mdef);
 
             Dictionary<MethodReference, string> visitedMethods = new Dictionary<MethodReference, string>();
             List<ICompiledMethod> methods = new List<ICompiledMethod>();

@@ -1380,6 +1380,11 @@ namespace SPEJIT
             Stelem_common(el);
         }
 
+        public void Stelem_ref(InstructionElement el)
+        {
+            Stelem_common(el);
+        }
+
         public void Stelem_common(InstructionElement el)
         {
             VirtualRegister value = PopStack(_RTMP4);
@@ -1411,6 +1416,9 @@ namespace SPEJIT
                     break;
                 case Mono.Cecil.Cil.Code.Stelem_R8:
                     arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Double };
+                    break;
+                case Mono.Cecil.Cil.Code.Stelem_Ref:
+                    arraytypes = new KnownObjectTypes[] { KnownObjectTypes.Object };
                     break;
                 default:
                     throw new Exception("Unsupported stelem instruction: " + el.Instruction.OpCode.Code);
@@ -1447,11 +1455,20 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, arrayPointer, 0x4)); //Times 16
             m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, _RTMP2, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
 
+            
             uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)arraytypes[0]);
 
             //Verify that the array has the correct type and that the index is within range
             if (!el.IsIndexChecked)
             {
+                //TODO: If the array is type object, we need to ensure:
+                // 1. That it is actually an array type
+                // 2. That the element written to the array has the correct type
+                
+                //We need to clear out the type information
+                if (arraytypes.Length == 1 && arraytypes[0] == KnownObjectTypes.Object)
+                    m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP2, _RTMP2, 0xff));
+
                 //TODO: It seems that the CIL is expected to perform the compatible type check?
 
                 if (arraytypes.Length == 1)
@@ -1485,6 +1502,11 @@ namespace SPEJIT
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.ceq(extraTmp, elementIndex, _RTMP3));
                 //TODO: Jump to an IndexOutOfRange exception raise function
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(extraTmp, 0x0));
+
+                //Re-load the pointer
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP2, arrayPointer, 0x4)); //Times 16
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, _RTMP2, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16));
+
             }
 
             //Get the base pointer offset
@@ -1876,6 +1898,81 @@ namespace SPEJIT
             m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP2, _RTMP2, 0));
 
             ExpandValue(AccCIL.AccCIL.GetObjType(Type.GetType(typename)), _RTMP2, (uint)o.RegisterNumber);
+
+            PushStack(o);
+        }
+
+        public void Newarr(InstructionElement el)
+        {
+            VirtualRegister size = PopStack(_RTMP0);
+            VirtualRegister o = el.Register.RegisterNumber < 0 ? new TemporaryRegister(_RTMP0) : el.Register;
+
+            string typename = ((Mono.Cecil.TypeReference)el.Instruction.Operand).FullName;
+            Type fulltype = Type.GetType(typename);
+
+            KnownObjectTypes t;
+            if (fulltype.IsPrimitive || fulltype == typeof(string))
+                t = AccCIL.AccCIL.GetObjType(fulltype);
+            else
+                t = KnownObjectTypes.Object;
+
+            uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)t);
+
+            //We need to preserve these registers
+            if (o.RegisterNumber != _ARG0)
+                PushStack(new TemporaryRegister(_ARG0));
+            PushStack(new TemporaryRegister(_ARG0 + 1));
+            PushStack(new TemporaryRegister(_ARG0 + 2));
+            PushStack(new TemporaryRegister(_ARG0 + 3));
+
+            //Prepare allocation
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0, SPEJITCompiler.OBJECT_TABLE_INDEX)); //Object ref
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 1, (uint)t)); //Type
+
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP1, eldivsize));
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shl(_ARG0 + 2, (uint)size.RegisterNumber, _RTMP1)); //Size
+
+            if (t == KnownObjectTypes.Object)
+                m_state.RegisterStringLoad(typename + "[]");
+            
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 3, 0)); //Typename or 0
+
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP4, 4)); //Register 4 parameters
+            m_state.RegisterCall(CompiledMethod.m_spe_builtins["malloc"]);
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brasl(0, 0xffff));
+
+            //Store the object index for later
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ori(_RTMP0, _ARG0, 0));
+
+            //Now load the pointer so we can clear the storate area
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.shli(_RTMP1, _ARG0, 4)); //Times 16
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.lqd(_RTMP1, _RTMP1, SPEJITCompiler.OBJECT_TABLE_OFFSET / 16)); //Load entry
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_RTMP2, _RTMP1, 8)); //Get offset
+            
+            //Prepare the loop counter
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.rotqbyi(_RTMP1, _RTMP1, 4)); //Get size
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_RTMP1, _RTMP1, 15)); //Round up
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.andi(_RTMP1, _RTMP1, ~0xfu & 0x3ff)); //Make sure we have a clean 16 byte multiple
+            
+            //Prepare the value to store
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.xor(_RTMP3, _RTMP3, _RTMP3)); //Make a zero register
+
+            //Take care of the zero size element
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brz(_RTMP1, 4)); //Protect against zero length
+
+            //Start the loop
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.stqx(_RTMP3, _RTMP2, _RTMP1)); //Divide size by 16
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.ai(_RTMP1, _RTMP1, -4 & 0x3ff)); //Decrement loop counter
+            m_state.Instructions.Add(new SPEEmulator.OpCodes.brnz(_RTMP1, -2 & 0xffff)); //Keep going if there are still elements
+
+            PopStack(_ARG0 + 3, true);
+            PopStack(_ARG0 + 2, true);
+            PopStack(_ARG0 + 1, true);
+            if (o.RegisterNumber != _ARG0)
+                PopStack(_ARG0, true);
+
+            if (o.RegisterNumber != _RTMP0)
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.ori((uint)o.RegisterNumber, _RTMP0, 0));
 
             PushStack(o);
         }

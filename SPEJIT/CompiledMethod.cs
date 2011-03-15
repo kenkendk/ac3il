@@ -303,7 +303,7 @@ namespace SPEJIT
         /// </summary>
         public IDictionary<Mono.Cecil.Cil.Instruction, int> InstructionOffsets { get { return m_instructionOffsets; } }
 
-        public string Fullname { get { return this.Method.Method.DeclaringType.FullName + "." + this.Method.Method.Name; } }
+        public string Fullname { get { return this.Method.Method.DeclaringType.FullName + "::" + this.Method.Method.Name; } }
 
         public IEnumerable<string> StringLiterals 
         { 

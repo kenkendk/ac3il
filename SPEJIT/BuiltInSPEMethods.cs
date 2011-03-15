@@ -60,6 +60,7 @@ namespace SPEJIT
                 case AccCIL.KnownObjectTypes.UInt:
                 case AccCIL.KnownObjectTypes.Float:
                 case AccCIL.KnownObjectTypes.Object:
+                case AccCIL.KnownObjectTypes.String:
                     return 2;
                 case AccCIL.KnownObjectTypes.Long:
                 case AccCIL.KnownObjectTypes.ULong:

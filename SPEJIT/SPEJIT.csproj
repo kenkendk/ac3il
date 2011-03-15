@@ -54,6 +54,7 @@
     <Compile Include="RegisterAllocator.cs" />
     <Compile Include="SPEJITCompiler.cs" />
     <Compile Include="CompiledMethod.cs" />
+    <Compile Include="SPEObjectManager.cs" />
     <Compile Include="SPEOpCodeMapper.cs" />
     <Compile Include="TemporaryRegister.cs" />
   </ItemGroup>

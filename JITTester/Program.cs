@@ -94,9 +94,11 @@ namespace JITTester
                 AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
 
-                //acc.Accelerate(CILFac.Fac.WritelineTest3, 42);
 
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
+
+                //acc.Accelerate(CILFac.Fac.WritelineTest3, 42);
+                
                 TestSuite(acc);
             }
             catch (Exception ex)
