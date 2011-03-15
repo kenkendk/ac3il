@@ -211,11 +211,11 @@ namespace SPEJIT
 
             object result = m.Invoke(@this, arguments);
             int resultIndex = result == null ? 0 : -1;
-
+             
             foreach (KeyValuePair<uint, object> t in manager.KnownObjectsById)
                 if (t.Value != null)
                 {
-                    //Strings are imutable, os there is no reason to transfer them back
+                    //Strings are imutable, so there is no reason to transfer them back
                     if (manager.ObjectTable[t.Key].KnownType == AccCIL.KnownObjectTypes.String)
                         continue;
 

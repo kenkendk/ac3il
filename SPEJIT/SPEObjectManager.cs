@@ -37,13 +37,22 @@ namespace SPEJIT
         public Dictionary<uint, object> KnownObjectsById;
         public Dictionary<Type, ISerializer> Serializers;
 
+        /// <summary>
+        /// Simple class that ensures that items in the dictionary are compared by pointer ref, rather than by object.Equals()
+        /// </summary>
+        private class PointerComparer : IEqualityComparer<object>
+        {
+            public bool Equals(object x, object y) { return x == y; }
+            public int GetHashCode(object obj) { return obj.GetHashCode(); }
+        }
+
         public SPEObjectManager(SPEEmulator.EndianBitConverter conv)
         {
             this.Converter = conv;
             this.ObjectTable = ReadObjectTable(conv);
 
             KnownObjectsById = new Dictionary<uint, object>();
-            KnownObjectsByObj = new Dictionary<object, uint>();
+            KnownObjectsByObj = new Dictionary<object, uint>(new PointerComparer());
 
             Serializers = GetDefaultSerializers();
         }
@@ -413,20 +422,41 @@ namespace SPEJIT
                 size = (uint)arr.Length * elsize;
                 uint alignedSize = ((size + 15) >> 4) << 4;
 
-                ISerializer elserializer;
-                m_parent.Serializers.TryGetValue(eltype, out elserializer);
-                if (elserializer == null)
-                    throw new Exception("Unsupported inner type: " + eltype.FullName);
-
                 SPEEmulator.EndianBitConverter c = new SPEEmulator.EndianBitConverter(new byte[alignedSize]);
 
-                for (int i = 0; i < arr.Length; i++)
+                if (eltype.IsPrimitive)
                 {
-                    //TODO: This is inefficient
-                    uint s;
-                    byte[] localdata = elserializer.Serialize(arr.GetValue(i), out s);
-                    Array.Copy(localdata, 0, c.Data, c.Position, localdata.Length);
-                    c.Position += s;
+                    ISerializer elserializer;
+                    m_parent.Serializers.TryGetValue(eltype, out elserializer);
+                    if (elserializer == null)
+                        throw new Exception("Unsupported inner type: " + eltype.FullName);
+
+                    for (int i = 0; i < arr.Length; i++)
+                    {
+                        //TODO: This is inefficient, it should write directly into the target buffer
+                        uint s;
+                        byte[] localdata = elserializer.Serialize(arr.GetValue(i), out s);
+                        Array.Copy(localdata, 0, c.Data, c.Position, localdata.Length);
+                        c.Position += s;
+                    }
+
+                }
+                else
+                {
+                    for (int i = 0; i < arr.Length; i++)
+                    {
+                        object value = arr.GetValue(i);
+                        if (value == null)
+                            c.WriteUInt(0);
+                        else
+                        {
+                            //If we are writing back the array, write back the element as well
+                            if (m_parent.KnownObjectsByObj.ContainsKey(element) && m_parent.KnownObjectsByObj.ContainsKey(value))
+                                m_parent.WriteObjectToLS(m_parent.KnownObjectsByObj[value], value);
+                            else
+                                c.WriteUInt(m_parent.CreateObjectOnLS(value));
+                        }
+                    }
                 }
 
                 return c.Data; 
@@ -464,13 +494,27 @@ namespace SPEJIT
                         throw new Exception("Unexpected difference in storage object and actual object");
                 }
 
-                ISerializer elserializer;
-                m_parent.Serializers.TryGetValue(eltype, out elserializer);
-                if (elserializer == null)
-                    throw new Exception("Unsupported inner type: " + eltype.FullName);
+                if (eltype.IsPrimitive)
+                {
+                    ISerializer elserializer;
+                    m_parent.Serializers.TryGetValue(eltype, out elserializer);
+                    if (elserializer == null)
+                        throw new Exception("Unsupported inner type: " + eltype.FullName);
 
-                for(int i = 0; i < arr.Length; i++)
-                    arr.SetValue(elserializer.Deserialize(conv, null, arr.GetValue(i)), i);
+                    for (int i = 0; i < arr.Length; i++)
+                        arr.SetValue(elserializer.Deserialize(conv, null, arr.GetValue(i)), i);
+                }
+                else
+                {
+                    //In this case elements may have a different type than what the array states,
+                    //because the array elements can be interface or object type, and the actual 
+                    //instance type is unknown
+                    ISerializer uintd = m_parent.Serializers[typeof(uint)];
+                    for (int i = 0; i < arr.Length; i++)
+                        arr.SetValue(m_parent.ReadObjectFromLS((uint)uintd.Deserialize(conv, null, null) , arr.GetValue(i)), i);
+
+                }
+
 
                 return arr;
             }

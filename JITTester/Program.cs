@@ -94,11 +94,10 @@ namespace JITTester
                 AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
 
+                //var o1 = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);
 
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
-
-                //acc.Accelerate(CILFac.Fac.WritelineTest3, 42);
-                
+               
                 TestSuite(acc);
             }
             catch (Exception ex)
@@ -134,7 +133,51 @@ namespace JITTester
 
             acc.Accelerate(CILFac.Fac.WritelineTest, 42);
             acc.Accelerate(CILFac.Fac.WritelineTest2, (object)42);
-            //acc.Accelerate(CILFac.Fac.WritelineTest3, 42);
+            acc.Accelerate(CILFac.Fac.WritelineTest3, 42);
+
+            byte[] b1 = acc.Accelerate<byte[]>(CILArray.ArrayTest.byteArrayGenerateTest);
+            uint[] u1 = acc.Accelerate<uint[]>(CILArray.ArrayTest.uintArrayGenerateTest);
+            int[] i1 = acc.Accelerate<int[]>(CILArray.ArrayTest.intArrayGenerateTest);
+            double[] d1 = acc.Accelerate<double[]>(CILArray.ArrayTest.doubleArrayGenerateTest);
+            object[] o1 = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);
+
+            byte[] b2 = CILArray.ArrayTest.byteArrayGenerateTest();
+            uint[] u2 = CILArray.ArrayTest.uintArrayGenerateTest();
+            int[] i2 = CILArray.ArrayTest.intArrayGenerateTest();
+            double[] d2 = CILArray.ArrayTest.doubleArrayGenerateTest();
+            object[] o2 = CILArray.ArrayTest.boxedArrayGenerateTest();
+
+            if (b1.Length != b2.Length)
+                throw new Exception("Byte array generate failed");
+            if (u1.Length != u2.Length)
+                throw new Exception("UInt array generate failed");
+            if (i1.Length != i2.Length)
+                throw new Exception("Int array generate failed");
+            if (d1.Length != d2.Length)
+                throw new Exception("Double array generate failed");
+            if (o1.Length != o2.Length)
+                throw new Exception("Boxed array generate failed");
+
+            for (int i = 0; i < b1.Length; i++)
+                if (b1[i] != b2[i])
+                    throw new Exception("Byte array generate failed");
+            for (int i = 0; i < u1.Length; i++)
+                if (u1[i] != u2[i])
+                    throw new Exception("UInt array generate failed");
+            for (int i = 0; i < i1.Length; i++)
+                if (i1[i] != i2[i])
+                    throw new Exception("Int array generate failed");
+            for (int i = 0; i < d1.Length; i++)
+                if (d1[i] != d2[i])
+                    throw new Exception("Double array generate failed");
+
+            /*for (int i = 0; i < o1.Length; i++)
+            {
+                if (!o1[i].Equals(o2[i]))
+                    throw new Exception("Boxed array generate failed");
+                if (o1[i].GetType() != o2[i].GetType())
+                    throw new Exception("Boxed array generate failed");
+            }*/
 
             long result = acc.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
             if (result != CILFac.Fac.Factorial(10))

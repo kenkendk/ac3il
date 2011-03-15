@@ -272,5 +272,56 @@ namespace CILArray
             if (a[0] != b[0])
                 Math.Max(14, 14);
         }
+
+        public static byte[] byteArrayGenerateTest()
+        {
+            var x = new byte[100];
+            for (int i = 0; i < x.Length; i++)
+                x[i] = (byte)i;
+
+            return x;
+        }
+
+
+        public static uint[] uintArrayGenerateTest()
+        {
+            var x = new uint[100];
+            for (int i = 0; i < x.Length; i++)
+                x[i] = (uint)i;
+
+            return x;
+        }
+
+        public static int[] intArrayGenerateTest()
+        {
+            var x = new int[100];
+            for (int i = 0; i < x.Length; i++)
+                x[i] = i;
+
+            return x;
+        }
+
+        public static double[] doubleArrayGenerateTest()
+        {
+            var x = new double[100];
+            for (int i = 0; i < x.Length; i++)
+                x[i] = i;
+
+            return x;
+        }
+
+        public static object[] boxedArrayGenerateTest()
+        {
+            var x = new object[6];
+            x[0] = (byte)0;
+            x[1] = (short)-5;
+            x[2] = (int)-1;
+            x[3] = (double)5.5;
+            x[4] = (bool)false;
+            x[5] = (bool)true;
+
+            return x;
+        }
+
     }
 }
