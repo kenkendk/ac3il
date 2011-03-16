@@ -48,7 +48,7 @@ namespace SPEJIT
         /// <summary>
         /// The size of the object table
         /// </summary>
-        public const int OBJECT_TABLE_SIZE = 16;
+        public const int OBJECT_TABLE_SIZE = 32;
 
         /// <summary>
         /// The element in the object table that is the object table

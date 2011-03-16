@@ -1823,14 +1823,15 @@ namespace SPEJIT
             PushStack(new TemporaryRegister(_ARG0 + 2));
             PushStack(new TemporaryRegister(_ARG0 + 3));
 
-            KnownObjectTypes t = AccCIL.AccCIL.GetObjType(el.Childnodes[0].ReturnType);
+            Type realtype = Type.GetType(((Mono.Cecil.TypeReference)el.Instruction.Operand).FullName);
+            KnownObjectTypes t = AccCIL.AccCIL.GetObjType(realtype);
             uint eldivsize = BuiltInSPEMethods.get_array_elem_len_mult((uint)t);
 
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0, SPEJITCompiler.OBJECT_TABLE_INDEX)); //Object ref
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 1, (uint)KnownObjectTypes.Object)); //Type
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 2, 1u << (int)BuiltInSPEMethods.get_array_elem_len_mult((uint)t))); //Size
 
-            m_state.RegisterStringLoad(el.Childnodes[0].ReturnType.FullName);
+            m_state.RegisterStringLoad(realtype.FullName);
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_ARG0 + 3, 0)); //Typename
             
             m_state.Instructions.Add(new SPEEmulator.OpCodes.il(_RTMP4, 4)); //Register 4 parameters

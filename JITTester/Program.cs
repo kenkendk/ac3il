@@ -92,6 +92,8 @@ namespace JITTester
             try
             {
                 AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
+                //var on = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);
+
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
 
                 //var o1 = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);

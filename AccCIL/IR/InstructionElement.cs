@@ -401,7 +401,7 @@ namespace AccCIL.IR
 
         public override string ToString()
         {
-            return Instruction.OpCode.ToString();
+            return Instruction.OpCode.ToString() + Instruction.Operand == null ? "" : Instruction.Operand.ToString();
         }
     }
 }
