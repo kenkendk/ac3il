@@ -203,6 +203,7 @@ namespace SPEJIT
             BOOTLOADER_LENGTH += CALL_HANDLER.Length + (4 - CALL_HANDLER.Length % 4) % 4;
             BOOTLOADER_LENGTH *= 4;
 
+            //We write in the default size in the ELF, but the actual loader is free to change it
             ObjectTableWrapper objtable = new ObjectTableWrapper(OBJECT_TABLE_SIZE, 256 * 1024);
             uint objtableindex = objtable.AddObject(KnownObjectTypes.UInt, (uint)(OBJECT_TABLE_SIZE * 16), null);
             uint bootloadertableindex = objtable.AddObject(KnownObjectTypes.Bootloader, (uint)BOOTLOADER_LENGTH, null);

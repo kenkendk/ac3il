@@ -145,5 +145,9 @@ namespace CUDAJIT
             Console.WriteLine("\tIntegrated:\t\t\t\t\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.Integrated) == 1 ? "Yes" : "No");
             Console.WriteLine("\tSupport host page-locked memory mapping:\t{0}", cuda.GetDeviceAttribute(GASS.CUDA.CUDeviceAttribute.CanMapHostMemory) == 1 ? "Yes" : "No");
         }
+
+        public override void Dispose()
+        {
+        }
     }
 }

@@ -14,7 +14,7 @@ namespace AccCIL
     /// <returns>True if the current function should be accelerated, false otherwise</returns>
     public delegate bool FunctionFilterDelegate(Mono.Cecil.MethodReference initial, Mono.Cecil.MethodReference parent, Mono.Cecil.MethodReference current);
 
-    public interface IAccellerator
+    public interface IAccellerator : IDisposable
     {
         /// <summary>
         /// Gets or sets the filter that is used to filter what functions to include when JIT compiling

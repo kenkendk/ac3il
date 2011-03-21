@@ -122,7 +122,7 @@ namespace AccCIL
         /// </summary>
         protected class ReturnTypeVoid { }
 
-        #region ISPEManager Members
+        #region IAccellerator Members
 
         public abstract void LoadProgram(IEnumerable<ICompiledMethod> methods);
 
@@ -296,6 +296,12 @@ namespace AccCIL
         {
             DoAccelerate<ReturnTypeVoid>(action.Method.Module.Assembly.ManifestModule.Name, action.Method.DeclaringType.FullName + "::" + action.Method.Name, new Type[] { typeof(InType1), typeof(InType2), typeof(InType3), typeof(InType4), typeof(InType5), typeof(InType6), typeof(InType7), typeof(InType8), typeof(InType9), typeof(InType10), typeof(InType11), typeof(InType12), typeof(InType13), typeof(InType14), typeof(InType15), typeof(InType16) }, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
         }
+        #endregion
+
+        #region IDisposable Members
+
+        public abstract void Dispose();
+
         #endregion
     }
 }

@@ -22,17 +22,17 @@ namespace SPEJIT
         /// </summary>
         /// <param name="conv">The conversion helper to write data into</param>
         /// <returns>The deserialized object</returns>
-        object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage);
+        object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage);
     }
 
     /// <summary>
     /// This class is responsible for managing objects that exist on the SPE
     /// It does caching to transparently support aliasing of pointers.
     /// </summary>
-    internal class SPEObjectManager
+    public class SPEObjectManager
     {
         public ObjectTableWrapper ObjectTable;
-        public SPEEmulator.EndianBitConverter Converter;
+        public SPEEmulator.IEndianBitConverter Converter;
         public Dictionary<object, uint> KnownObjectsByObj;
         public Dictionary<uint, object> KnownObjectsById;
         public Dictionary<Type, ISerializer> Serializers;
@@ -46,7 +46,7 @@ namespace SPEJIT
             public int GetHashCode(object obj) { return obj.GetHashCode(); }
         }
 
-        public SPEObjectManager(SPEEmulator.EndianBitConverter conv)
+        public SPEObjectManager(SPEEmulator.IEndianBitConverter conv)
         {
             this.Converter = conv;
             this.ObjectTable = ReadObjectTable(conv);
@@ -84,7 +84,7 @@ namespace SPEJIT
                     throw new Exception("Unable to deserialize element of type: " + eltype.FullName);
 
                 SPEEmulator.EndianBitConverter c = new SPEEmulator.EndianBitConverter(new byte[e.AlignedSize]);
-                Array.Copy(Converter.Data, e.Offset, c.Data, 0, e.AlignedSize);
+                Converter.ReadBytes(e.Offset, c.Data);
 
                 object el = s.Deserialize(c, e, storage);
 
@@ -128,7 +128,7 @@ namespace SPEJIT
             
             uint s;
             byte[] tmp = Serializers[t].Serialize(data, out s);
-            Array.Copy(tmp, 0, Converter.Data, offset, tmp.Length);
+            Converter.WriteBytes(offset, tmp);
             return (uint)tmp.Length;
         }
 
@@ -178,8 +178,8 @@ namespace SPEJIT
                     Array.Copy(buffer, tmp, buffer.Length);
                     buffer = tmp;
                 }
-                
-                Array.Copy(buffer, 0, Converter.Data, e.Offset, e.AlignedSize);
+
+                Converter.WriteBytes(e.Offset, buffer);
 
                 KnownObjectsById[objindex] = data;
                 KnownObjectsByObj[data] = objindex;
@@ -214,8 +214,7 @@ namespace SPEJIT
                 buffer = tmp;
             }
 
-            Array.Copy(buffer, 0, Converter.Data, e.Offset, e.AlignedSize);
-
+            Converter.WriteBytes(e.Offset, buffer);
         }
 
         private Type FindElementType(uint objectIndex)
@@ -229,11 +228,11 @@ namespace SPEJIT
                 return AccCIL.AccCIL.GetObjType(e.KnownType).MakeArrayType();
         }
 
-        private static ObjectTableWrapper ReadObjectTable(SPEEmulator.EndianBitConverter conv)
+        private static ObjectTableWrapper ReadObjectTable(SPEEmulator.IEndianBitConverter conv)
         {
             uint object_table_size = conv.ReadUInt(SPEJITCompiler.OBJECT_TABLE_OFFSET);
             SPEEmulator.EndianBitConverter obj_tb_tmp = new SPEEmulator.EndianBitConverter(new byte[(object_table_size + 1) * 16]);
-            Array.Copy(conv.Data, SPEJITCompiler.OBJECT_TABLE_OFFSET, obj_tb_tmp.Data, 0, obj_tb_tmp.Data.Length);
+            conv.ReadBytes(SPEJITCompiler.OBJECT_TABLE_OFFSET, obj_tb_tmp.Data);
             uint[] object_table = new uint[(object_table_size + 1) * 4];
             for (int i = 0; i < object_table.Length; i++)
                 object_table[i] = obj_tb_tmp.ReadUInt();
@@ -243,7 +242,7 @@ namespace SPEJIT
             foreach (var v in objtable.Where(c => c.KnownType == AccCIL.KnownObjectTypes.String))
             {
                 byte[] localdata = new byte[v.AlignedSize];
-                Array.Copy(conv.Data, v.Offset, localdata, 0, localdata.Length);
+                conv.ReadBytes(v.Offset, localdata);
 
                 objtable.Strings.Add(System.Text.Encoding.UTF8.GetString(localdata, 0, (int)v.Size), v.Index);
             }
@@ -251,12 +250,13 @@ namespace SPEJIT
             return objtable;
         }
 
-        private static void WriteObjectTable(SPEEmulator.EndianBitConverter conv, ObjectTableWrapper objtable)
+        private static void WriteObjectTable(SPEEmulator.IEndianBitConverter conv, ObjectTableWrapper objtable)
         {
             SPEEmulator.EndianBitConverter obj_tb_tmp = new SPEEmulator.EndianBitConverter(new byte[objtable.Data.Length * 4]);
             foreach (uint u in objtable.Data)
                 obj_tb_tmp.WriteUInt(u);
-            Array.Copy(obj_tb_tmp.Data, 0, conv.Data, SPEJITCompiler.OBJECT_TABLE_OFFSET, obj_tb_tmp.Data.Length);
+
+            conv.WriteBytes(SPEJITCompiler.OBJECT_TABLE_OFFSET, obj_tb_tmp.Data);
 
             foreach (KeyValuePair<string, uint> k in objtable.Strings)
             {
@@ -268,7 +268,7 @@ namespace SPEJIT
                 byte[] localdata = new byte[e.AlignedSize];
                 System.Text.Encoding.UTF8.GetBytes(k.Key, 0, k.Key.Length, localdata, 0);
 
-                Array.Copy(localdata, 0, conv.Data, e.Offset, localdata.Length);
+                conv.WriteBytes(e.Offset, localdata);
             }
         }
 
@@ -297,77 +297,77 @@ namespace SPEJIT
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[1]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteByte(0, (byte)element); size = 1; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadByte(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadByte(); }
         }
 
         private class SByteSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[1]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteByte(0, (byte)(sbyte)element); size = 1; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return (sbyte)conv.ReadByte(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return (sbyte)conv.ReadByte(); }
         }
 
         private class BooleanSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[1]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteByte(0, (byte)((bool)element ? 1 : 0)); size = 1; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadByte() == 0 ? false : true; }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadByte() == 0 ? false : true; }
         }
 
         private class ShortSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[2]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteUShort(0, (ushort)(short)element); size = 2; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return (short)conv.ReadUShort(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return (short)conv.ReadUShort(); }
         }
 
         private class UShortSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[2]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteUShort(0, (ushort)element); size = 2; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadUShort(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadUShort(); }
         }
 
         private class IntSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[4]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteUInt(0, (uint)(int)element); size = 4; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return (int)conv.ReadUInt(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return (int)conv.ReadUInt(); }
         }
 
         private class UIntSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[4]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteUInt(0, (uint)element); size = 4; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadUInt(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadUInt(); }
         }
 
         private class LongSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[8]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteULong(0, (ulong)(long)element); size = 8; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return (long)conv.ReadULong(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return (long)conv.ReadULong(); }
         }
 
         private class ULongSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[8]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteULong(0, (ulong)element); size = 8; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadULong(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadULong(); }
         }
 
         private class FloatSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[4]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteFloat(0, (float)element); size = 4; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadFloat(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadFloat(); }
         }
 
         private class DoubleSerializer : ISerializer
         {
             private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[8]);
             public byte[] Serialize(object element, out uint size) { m_conv.WriteDouble(0, (double)element); size = 8; return m_conv.Data; }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadDouble(); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) { return conv.ReadDouble(); }
         }
 
         private class StringSerializer : ISerializer
@@ -385,13 +385,18 @@ namespace SPEJIT
                 System.Text.Encoding.UTF8.GetBytes(s, 0, s.Length, data, 0);
                 return data; 
             }
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) { return System.Text.Encoding.UTF8.GetString(conv.Data, 0, (int)e.Size); }
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) 
+            {
+                byte[] data = new byte[e.AlignedSize];
+                conv.ReadBytes(data); 
+                return System.Text.Encoding.UTF8.GetString(data, 0, (int)e.Size); 
+            }
         }
 
         private class ArraySerializer : ISerializer
         {
             private SPEObjectManager m_parent;
-            private SPEEmulator.EndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[4]);
+            private SPEEmulator.IEndianBitConverter m_conv = new SPEEmulator.EndianBitConverter(new byte[4]);
             public ArraySerializer(SPEObjectManager parent) { m_parent = parent; }
 
             public byte[] Serialize(object element, out uint size) 
@@ -462,7 +467,7 @@ namespace SPEJIT
                 return c.Data; 
             }
 
-            public object Deserialize(SPEEmulator.EndianBitConverter conv, ObjectTableEntry e, object storage) 
+            public object Deserialize(SPEEmulator.IEndianBitConverter conv, ObjectTableEntry e, object storage) 
             {
                 Type arrtype;
                 uint elsize;

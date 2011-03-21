@@ -49,9 +49,11 @@
     <Compile Include="CellSPEAccelerator.cs" />
     <Compile Include="CellSPEEmulatorAccelerator.cs" />
     <Compile Include="LibspePInvoke.cs" />
+    <Compile Include="LSBitConverter.cs" />
     <Compile Include="ObjectTableWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegisterAllocator.cs" />
+    <Compile Include="SPEAcceleratorBase.cs" />
     <Compile Include="SPEJITCompiler.cs" />
     <Compile Include="CompiledMethod.cs" />
     <Compile Include="SPEObjectManager.cs" />
