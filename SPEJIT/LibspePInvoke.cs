@@ -6,10 +6,11 @@ using System.Runtime.InteropServices;
 
 namespace SPEJIT
 {
+    /// <summary>
+    /// This class contains all the P/Invoke related code used to call libspe2.so
+    /// </summary>
     internal class LibspePInvoke
     {
-        public delegate int CallbackHandlerDelegate(IntPtr ls, uint sp);
-
         public enum CreateFlags : uint
         {
             SPE_CFG_SIGNOTIFY1_OR = 0x00000010,
@@ -29,6 +30,7 @@ namespace SPEJIT
 
         public enum Runflags : uint
         {
+            NONE = 0,
             /// <summary>
             /// Specifies that the SPE setup registers r3, r4, and r5 are initialized with the 48 bytes pointed to by argp
             /// </summary>
@@ -43,6 +45,7 @@ namespace SPEJIT
 
         public enum StopReason : uint
         {
+            NONE = 0,
             SPE_EXIT = 1,
             SPE_STOP_AND_SIGNAL = 2,
             SPE_RUNTIME_ERROR = 3,
@@ -52,16 +55,7 @@ namespace SPEJIT
             SPE_ISOLATION_ERROR = 7
         }
 
-        public struct spe_gang_context_t
-        {
-            public IntPtr data;
-        }
-
-        public struct spe_context_t 
-        {
-            public IntPtr data;
-        }
-
+        [StructLayout(LayoutKind.Sequential, Pack=1)]
         public struct spe_stop_info_t 
         {
             public StopReason stop_reason;
@@ -70,55 +64,50 @@ namespace SPEJIT
             public int spu_status;
         }
 
-        public struct spe_program_handle_t
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        public struct spe_start_t
         {
-            public IntPtr data;
+            public uint entrypoint;
         }
 
         //TODO: The constant should be UINT_MAX, but the argument must be type int, -1 is the same value for 32 bit,
         // but this does not work if it is sign extended to 64 bit before performing the add
-        public static readonly IntPtr SPE_DEFAULT_ENTRY = IntPtr.Add(IntPtr.Zero, -1);
+        public static readonly spe_start_t SPE_DEFAULT_ENTRY = new spe_start_t() { entrypoint = uint.MaxValue };
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern spe_context_t spe_context_create(CreateFlags flags, spe_gang_context_t gang_context);
-        [DllImport("libspe", SetLastError = true)]
-        public static extern spe_context_t spe_context_create(CreateFlags flags, IntPtr gang_context);
+        [DllImport("libc", SetLastError = true)]
+        public static extern int chmod([MarshalAs(UnmanagedType.LPStr)] string filename, uint mode);
+        //int chmod(const char *path, mode_t mode);
+
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern IntPtr spe_context_create(CreateFlags flags, IntPtr gang_context);
         //spe_context_ptr_t spe_context_create(unsigned int flags, spe_gang_context_ptr_t gang)
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_context_destroy(spe_context_t context);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern int spe_context_destroy(IntPtr context);
         //int spe_context_destroy(spe_context_ptr_t spe);
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_context_run(spe_context_t spe, IntPtr start_instruction, Runflags runflags, IntPtr argp, IntPtr envp, ref spe_stop_info_t stopinfo);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern int spe_context_run(IntPtr spe, ref spe_start_t entry, Runflags runflags, IntPtr argp, IntPtr envp, ref spe_stop_info_t stopinfo);
         //int spe_context_run(spe_context_ptr_t spe, unsigned int *entry, unsigned int runflags, void *argp, void *envp, spe_stop_info_t *stopinfo);
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern spe_program_handle_t spe_image_open(string filename);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern IntPtr spe_image_open([MarshalAs(UnmanagedType.LPStr)] string filename);
         //spe_program_handle_t * spe_image_open (const char *filename);
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_image_close(spe_program_handle_t handle);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern int spe_image_close(IntPtr handle);
         //int spe_image_close (spe_program_handle_t *program);
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_program_load(spe_context_t spe, spe_program_handle_t program);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern int spe_program_load(IntPtr spe, IntPtr program);
         //int spe_program_load(spe_context_ptr_t spe, spe_program_handle_t* program);
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern IntPtr spe_ls_area_get(spe_context_t spe);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern IntPtr spe_ls_area_get(IntPtr spe);
         //void * spe_ls_area_get (spe_context_ptr_t spe);
 
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_ls_size_get(spe_context_t spe);
+        [DllImport("libspe2", SetLastError = true)]
+        public static extern int spe_ls_size_get(IntPtr spe);
         //int spe_ls_size_get(spe_context_ptr_t spe);
-
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_callback_handler_register(CallbackHandlerDelegate handler, uint callnum, CallbackMode mode);
-        //int spe_callback_handler_register (void *handler, unsigned int callnum, unsigned int mode);
-
-        [DllImport("libspe", SetLastError = true)]
-        public static extern int spe_callback_handler_deregister(uint callnum);
-        //int spe_callback_handler_deregister (unsigned int callnum);
     }
 }

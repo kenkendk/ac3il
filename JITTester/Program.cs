@@ -57,49 +57,25 @@ namespace JITTester
         [STAThread]
         static void Main(string[] args)
         {
-            System.Windows.Forms.Application.EnableVisualStyles();
-            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
 
-            /*ulong z = 0xFFFFFFFFFFFFFFFB;
-            ulong f = 0xa;
-
-            if (umul(z, f) != 0xFFFFFFFFFFFFFFCE)
-                Console.WriteLine("Broken"); 
-
-            if (umul(0xffff, 0xffffa) != 0xffffL * 0xffffa)
-                Console.WriteLine("Broken");
-
-            TestLogicals();
-            if (mul(0xffffffff, 0xa) != 0xffffffffL * 0xa)
-                Console.WriteLine("Broken");
-
-            
-            if (mul(0xffffffff, 0xafffa) != 0xffffffffL * 0xafffa)
-                Console.WriteLine("Broken");
-
-            long n = 0xffffffffL;
-            n *= n;
-
-            if (n != mul(0xffffffff, 0xffffffff))
-                Console.WriteLine("Broken");
-            
-            unchecked
+            if (System.Environment.OSVersion.Platform == PlatformID.Win32NT || System.Environment.OSVersion.Platform == PlatformID.Win32S || System.Environment.OSVersion.Platform == PlatformID.Win32Windows || System.Environment.OSVersion.Platform == PlatformID.WinCE)
             {
-                if ((0xffffffffu * (ulong)-5) != umul(0xffffffffu, (ulong)-5))
-                    Console.WriteLine("Broken");
-            }*/
+                System.Windows.Forms.Application.EnableVisualStyles();
+                System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+            }
 
             try
             {
                 AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
-                //var on = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);
-
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
 
-                //var o1 = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);
+                //acc.Accelerate(CILFac.Fac.WritelineTest, 42);
 
                 ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
-               
+
+                if (SPEJIT.CellSPEAccelerator.HasHardwareSPE)
+                    acc = new SPEJIT.CellSPEAccelerator();
+
                 TestSuite(acc);
             }
             catch (Exception ex)
@@ -140,12 +116,14 @@ namespace JITTester
             byte[] b1 = acc.Accelerate<byte[]>(CILArray.ArrayTest.byteArrayGenerateTest);
             uint[] u1 = acc.Accelerate<uint[]>(CILArray.ArrayTest.uintArrayGenerateTest);
             int[] i1 = acc.Accelerate<int[]>(CILArray.ArrayTest.intArrayGenerateTest);
+            float[] f1 = acc.Accelerate<float[]>(CILArray.ArrayTest.floatArrayGenerateTest);
             double[] d1 = acc.Accelerate<double[]>(CILArray.ArrayTest.doubleArrayGenerateTest);
             object[] o1 = acc.Accelerate<object[]>(CILArray.ArrayTest.boxedArrayGenerateTest);
 
             byte[] b2 = CILArray.ArrayTest.byteArrayGenerateTest();
             uint[] u2 = CILArray.ArrayTest.uintArrayGenerateTest();
             int[] i2 = CILArray.ArrayTest.intArrayGenerateTest();
+            float[] f2 = CILArray.ArrayTest.floatArrayGenerateTest();
             double[] d2 = CILArray.ArrayTest.doubleArrayGenerateTest();
             object[] o2 = CILArray.ArrayTest.boxedArrayGenerateTest();
 
@@ -155,6 +133,8 @@ namespace JITTester
                 throw new Exception("UInt array generate failed");
             if (i1.Length != i2.Length)
                 throw new Exception("Int array generate failed");
+            if (f1.Length != f2.Length)
+                throw new Exception("Float array generate failed");
             if (d1.Length != d2.Length)
                 throw new Exception("Double array generate failed");
             if (o1.Length != o2.Length)
@@ -162,24 +142,27 @@ namespace JITTester
 
             for (int i = 0; i < b1.Length; i++)
                 if (b1[i] != b2[i])
-                    throw new Exception("Byte array generate failed");
+                    throw new Exception("Byte array generate failed, values");
             for (int i = 0; i < u1.Length; i++)
                 if (u1[i] != u2[i])
-                    throw new Exception("UInt array generate failed");
+                    throw new Exception("UInt array generate failed, values");
             for (int i = 0; i < i1.Length; i++)
                 if (i1[i] != i2[i])
-                    throw new Exception("Int array generate failed");
+                    throw new Exception("Int array generate failed, values");
+            for (int i = 0; i < f1.Length; i++)
+                if (f1[i] != f2[i])
+                    throw new Exception(string.Format("Float array generate failed, values: {0} vs {1} at {2}", (double)f1[i], (double)f2[i], i));
             for (int i = 0; i < d1.Length; i++)
                 if (d1[i] != d2[i])
-                    throw new Exception("Double array generate failed");
+                    throw new Exception(string.Format("Double array generate failed, values: {0} vs {1} at {2}", d1[i], d2[i], i));
 
-            /*for (int i = 0; i < o1.Length; i++)
+            for (int i = 0; i < o1.Length; i++)
             {
                 if (!o1[i].Equals(o2[i]))
-                    throw new Exception("Boxed array generate failed");
+                    throw new Exception("Boxed array generate failed, values");
                 if (o1[i].GetType() != o2[i].GetType())
-                    throw new Exception("Boxed array generate failed");
-            }*/
+                    throw new Exception("Boxed array generate failed, types");
+            }
 
             long result = acc.Accelerate<long, long>(CILFac.Fac.Factorial, 10);
             if (result != CILFac.Fac.Factorial(10))
@@ -219,11 +202,11 @@ namespace JITTester
 
             var floatsum = acc.Accelerate<float[], float>(CILArray.ArrayTest.sum, TestFloats);
             if (floatsum != CILArray.ArrayTest.sum(TestFloats))
-                throw new Exception("Sum of floats failed");
+                throw new Exception(string.Format("Sum of floats failed {0} vs {1}", (double)floatsum, (double)CILArray.ArrayTest.sum(TestFloats)));
 
             var doublesum = acc.Accelerate<double[], double>(CILArray.ArrayTest.sum, TestDoubles);
             if (doublesum != CILArray.ArrayTest.sum(TestDoubles))
-                throw new Exception("Sum of doubles failed");
+                throw new Exception(string.Format("Sum of doubles failed {0} vs {1}", doublesum, CILArray.ArrayTest.sum(TestDoubles)));
 
 
             var outbytes = acc.Accelerate<byte[], byte, byte[]>(CILArray.ArrayTest.mult, TestBytes, 4);

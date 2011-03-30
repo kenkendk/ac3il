@@ -21,10 +21,7 @@ namespace SPEJIT
 #if DEBUG
             using (System.IO.FileStream outfile = new System.IO.FileStream(elffile, System.IO.FileMode.Create))
             using (System.IO.TextWriter sw = new System.IO.StreamWriter(System.IO.Path.Combine(startPath, program + ".asm")))
-            {
                 m_callpoints = m_compiler.EmitELFStream(outfile, sw, methods);
-                Console.WriteLine("Converted output size in bytes: " + outfile.Length);
-            }
 #else
             using (System.IO.FileStream outfile = new System.IO.FileStream(elffile, System.IO.FileMode.Create))
                 m_callpoints = m_compiler.EmitELFStream(outfile, null, methods); 
@@ -116,8 +113,11 @@ namespace SPEJIT
             m_callpoints.TryGetValue((int)call_address, out calledmethod);
 
             if (calledmethod == null)
+            {
+                foreach (KeyValuePair<int, Mono.Cecil.MethodReference> f in m_callpoints)
+                    Console.WriteLine("Call registered at {0} for method {1}", f.Key, f.Value.DeclaringType.FullName + "::" + f.Value.Name);
                 throw new Exception("No method call registered at " + call_address);
-
+            }
 
             //All good, we have a real function, now load all required arguments onto PPE
             object[] arguments = new object[calledmethod.Parameters.Count];
@@ -137,7 +137,6 @@ namespace SPEJIT
                 Type argtype = m.DeclaringType;
                 uint objindex = (uint)manager.ReadRegisterPrimitiveValue(typeof(uint), sp_offset);
                 @this = manager.ReadObjectFromLS(objindex);
-
                 sp_offset += 16;
             }
 
@@ -145,10 +144,18 @@ namespace SPEJIT
             {
                 Type argtype = Type.GetType(calledmethod.Parameters[i].ParameterType.FullName);
                 arguments[i] = manager.ReadRegisterPrimitiveValue(argtype.IsPrimitive ? argtype : typeof(uint), sp_offset);
+
                 if (!argtype.IsPrimitive)
                     arguments[i] = manager.ReadObjectFromLS((uint)arguments[i]);
 
                 sp_offset += 16;
+            }
+
+            if (calledmethod.Name != "WriteLine" && calledmethod.Name != "Format" && calledmethod.Name != "ToString")
+            {
+                Console.WriteLine("Invoking {0} with arguments: ", calledmethod.DeclaringType.FullName + "::" + calledmethod.Name);
+                foreach (object o in arguments)
+                    Console.WriteLine("\t{0}", o == null ? "<null>" : o.ToString());
             }
 
             object result = m.Invoke(@this, arguments);
@@ -159,7 +166,11 @@ namespace SPEJIT
                 {
                     //Strings are imutable, so there is no reason to transfer them back
                     if (manager.ObjectTable[t.Key].KnownType == AccCIL.KnownObjectTypes.String)
+                    {
+                        if (t.Value.Equals(result))
+                            resultIndex = (int)t.Key;
                         continue;
+                    }
 
                     manager.WriteObjectToLS(t.Key, t.Value);
 

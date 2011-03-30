@@ -324,7 +324,7 @@ namespace SPEJIT
                 VirtualRegister input = PopStack(_RTMP0);
                 VirtualRegister output = el.Register.RegisterNumber < 0 ? _VTMP0 : el.Register;
 
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.csflt((uint)output.RegisterNumber, (uint)input.RegisterNumber, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.csflt((uint)output.RegisterNumber, (uint)input.RegisterNumber, 155));
                 PushStack(output);
             }
             else if (el.Childnodes[0].StorageClass == typeof(long))
@@ -355,7 +355,7 @@ namespace SPEJIT
                 VirtualRegister input = PopStack(_RTMP0);
                 VirtualRegister output = el.Register.RegisterNumber < 0 ? _VTMP0 : el.Register;
 
-                m_state.Instructions.Add(new SPEEmulator.OpCodes.csflt((uint)output.RegisterNumber, (uint)input.RegisterNumber, 0));
+                m_state.Instructions.Add(new SPEEmulator.OpCodes.csflt((uint)output.RegisterNumber, (uint)input.RegisterNumber, 155));
                 m_state.Instructions.Add(new SPEEmulator.OpCodes.fesd((uint)output.RegisterNumber, (uint)output.RegisterNumber));
                 PushStack(output);
             }

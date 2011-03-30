@@ -85,7 +85,7 @@ namespace SPEJIT
         /// <summary>
         /// The stop value that indicates successfull execution
         /// </summary>
-        public const uint STOP_SUCCESSFULL = 0x2000;
+        public const uint STOP_SUCCESSFULL = 0x2001;
 
         /// <summary>
         /// The stop value that indicates that a method was being invoked that was not loaded on the SPE
@@ -526,8 +526,14 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
             new SPEEmulator.OpCodes.stqr(_TMP2, (uint)(-8 & 0xffff)), //Write the unmodified instruction back
 
+            //Merge the SP with the call value so the bi instruction survives
+            new SPEEmulator.OpCodes.lqr(_TMP2, 0x10), //Load the current contents
+            new SPEEmulator.OpCodes.fsmbi(_TMP3, 0xf000), //Load a mask
+            new SPEEmulator.OpCodes.selb(_TMP1, _TMP2, _SP,  _TMP3), //Load SP into the prefered word, preserve the rest
+            new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
+
             //We now have all registers stored on stack, write the SP in the call value
-            new SPEEmulator.OpCodes.stqr(_SP, 0xb), //Write the SP
+            new SPEEmulator.OpCodes.stqr(_TMP1, 0xb), //Write the SP
             new SPEEmulator.OpCodes.nop(), //Adjust offset so we can access the instruction directly
 
             //Now make a branch to set the LR to point at the next instruction
@@ -548,10 +554,10 @@ namespace SPEJIT
             new SPEEmulator.OpCodes.stop(STOP_METHOD_CALL),
             
             //Space for storing the values passed to the PPE
-            new SPEEmulator.OpCodes.nop(),
-            new SPEEmulator.OpCodes.nop(),
-            new SPEEmulator.OpCodes.nop(),
-            new SPEEmulator.OpCodes.nop(),
+            new SPEEmulator.OpCodes.nop(), //This one will contain the SP
+            new SPEEmulator.OpCodes.bi(_LR, _LR), //This one will stay a bi
+            new SPEEmulator.OpCodes.nop(), //Zero, unused
+            new SPEEmulator.OpCodes.nop(), //Zero, unused
             
 
         };

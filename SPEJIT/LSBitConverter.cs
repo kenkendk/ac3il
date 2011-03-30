@@ -43,7 +43,7 @@ namespace SPEJIT
             }
             set
             {
-                m_position = 0;
+                m_position = value;
             }
         }
 
@@ -77,7 +77,7 @@ namespace SPEJIT
         {
             float f = ReadFloat(m_position);
             m_position += 4;
-            return m_position;
+            return f;
         }
 
         public float ReadFloat(uint offset)

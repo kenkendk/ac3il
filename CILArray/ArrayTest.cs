@@ -310,6 +310,15 @@ namespace CILArray
             return x;
         }
 
+        public static float[] floatArrayGenerateTest()
+        {
+            var x = new float[100];
+            for (int i = 0; i < x.Length; i++)
+                x[i] = i;
+
+            return x;
+        }
+
         public static object[] boxedArrayGenerateTest()
         {
             var x = new object[6];

@@ -239,6 +239,11 @@ namespace SPEJIT
 
             ObjectTableWrapper objtable = new ObjectTableWrapper(object_table);
 
+            /*Console.WriteLine("#Size {0}, nextFree: {1}, nextOffset: {2}, memSize: {3}", objtable.Size, objtable.NextFree, objtable.NextOffset, objtable.Memsize);
+            foreach (var e in objtable)
+                Console.WriteLine(e.ToString());*/
+
+
             foreach (var v in objtable.Where(c => c.KnownType == AccCIL.KnownObjectTypes.String))
             {
                 byte[] localdata = new byte[v.AlignedSize];
@@ -519,7 +524,6 @@ namespace SPEJIT
                         arr.SetValue(m_parent.ReadObjectFromLS((uint)uintd.Deserialize(conv, null, null) , arr.GetValue(i)), i);
 
                 }
-
 
                 return arr;
             }
