@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace AccCIL
+namespace AccCIL.Optimizers
 {
     /// <summary>
     /// Simple register allocator that merely assigns registers until it runs out
     /// </summary>
-    public class SimpleAllocator : IRegisterAllocator
+    public class SimpleAllocator : IRegisterAllocator, IOptimizer
     {
         #region IRegisterAllocator Members
 
@@ -70,6 +70,30 @@ namespace AccCIL
                 AllocateRegistersRecursive(i, registers, method, used, usageCount);
 
             return used;
+        }
+
+        #endregion
+
+        #region IOptimizer Members
+
+        public string Name
+        {
+            get { return "SimpleRegisterAllocator"; }
+        }
+
+        public string Description
+        {
+            get { return "Runs a simple first-use register allocator that runs in linear time"; }
+        }
+
+        public OptimizationLevel IncludeLevel
+        {
+            get { return OptimizationLevel.Low; }
+        }
+
+        public void Optimize(IR.MethodEntry method, OptimizationLevel level)
+        {
+            throw new InvalidOperationException("The register allocator must be invoked via the IRegisterAllocator interface instead of the IOptimizer interface");
         }
 
         #endregion

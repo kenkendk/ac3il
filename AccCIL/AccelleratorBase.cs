@@ -26,6 +26,27 @@ namespace AccCIL
             set { m_functionFilter = value; }
         }
 
+        public AccelleratorBase()
+        {
+            this.OptimizationLevel = OptimizationLevel.Medium;
+            foreach (IOptimizer o in AccCIL.StockOptimizers)
+                this.Optimizers.Add(o);
+        }
+
+        /// <summary>
+        /// Gets a list of active optimizers
+        /// </summary>
+        public IList<IOptimizer> Optimizers { get { return this.Compiler.Optimizers; } }
+
+        /// <summary>
+        /// Gets or sets the current optimization level
+        /// </summary>
+        public OptimizationLevel OptimizationLevel 
+        { 
+            get { return this.Compiler.OptimizationLevel; }
+            set { this.Compiler.OptimizationLevel = value; }
+        }
+
         /// <summary>
         /// Internal helper function that ensures that all book keeping variables are set when loading a method
         /// </summary>

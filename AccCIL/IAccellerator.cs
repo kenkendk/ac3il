@@ -17,6 +17,16 @@ namespace AccCIL
     public interface IAccellerator : IDisposable
     {
         /// <summary>
+        /// Gets a list of active optimizers
+        /// </summary>
+        IList<IOptimizer> Optimizers { get; }
+
+        /// <summary>
+        /// Gets or sets the current optimization level
+        /// </summary>
+        OptimizationLevel OptimizationLevel { get; set; }
+
+        /// <summary>
         /// Gets or sets the filter that is used to filter what functions to include when JIT compiling
         /// </summary>
         FunctionFilterDelegate FunctionFilter { get; set; }

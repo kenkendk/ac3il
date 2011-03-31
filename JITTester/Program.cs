@@ -76,6 +76,8 @@ namespace JITTester
                 if (SPEJIT.CellSPEAccelerator.HasHardwareSPE)
                     acc = new SPEJIT.CellSPEAccelerator();
 
+                //acc.OptimizationLevel = AccCIL.OptimizationLevel.Extreme;
+
                 TestSuite(acc);
             }
             catch (Exception ex)

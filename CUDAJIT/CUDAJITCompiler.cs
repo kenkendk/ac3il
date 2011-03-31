@@ -14,12 +14,30 @@ namespace CUDAJIT
         private static readonly Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> _opTranslations;
 
         /// <summary>
+        /// The list of active optimizers
+        /// </summary>
+        private List<IOptimizer> m_optimizers = new List<IOptimizer>();
+
+        /// <summary>
         /// Static initializer for building instruction table based on reflection
         /// </summary>
         static CUDAJITCompiler()
         {
             _opTranslations = BuildTranslationTable();
         }
+
+        /// <summary>
+        /// Gets the list of active optimizers
+        /// </summary>
+        public IList<IOptimizer> Optimizers
+        {
+            get { return m_optimizers; }
+        }
+
+        /// <summary>
+        /// Gets or sets the current optimization level
+        /// </summary>
+        public OptimizationLevel OptimizationLevel { get; set; }
 
         private static Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> BuildTranslationTable()
         {

@@ -98,12 +98,30 @@ namespace SPEJIT
         private static readonly Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> _opTranslations;
 
         /// <summary>
+        /// The list of active optimizers
+        /// </summary>
+        private List<IOptimizer> m_optimizers = new List<IOptimizer>();
+
+        /// <summary>
         /// Static initializer for building instruction table based on reflection
         /// </summary>
         static SPEJITCompiler()
         {
             _opTranslations = BuildTranslationTable();
         }
+
+        /// <summary>
+        /// Gets the list of active optimizers
+        /// </summary>
+        public IList<IOptimizer> Optimizers
+        {
+            get { return m_optimizers; }
+        }
+
+        /// <summary>
+        /// Gets or sets the current optimization level
+        /// </summary>
+        public OptimizationLevel OptimizationLevel { get; set; }
 
         /// <summary>
         /// Produces an ELF compatible binary output stream with the compiled methods
@@ -564,6 +582,21 @@ namespace SPEJIT
 
         public ICompiledMethod JIT(AccCIL.IR.MethodEntry method)
         {
+            //First we execute all IR/CIL optimizations, except the register allocator
+            IRegisterAllocator allocator = null;
+
+            foreach (IOptimizer o in m_optimizers)
+                if (this.OptimizationLevel >= o.IncludeLevel)
+                {
+                    if (o is IRegisterAllocator)
+                    {
+                        allocator = (IRegisterAllocator)o;
+                        continue;
+                    }
+                    else
+                        o.Optimize(method, this.OptimizationLevel);
+                }
+
             CompiledMethod state = new CompiledMethod(method);
             SPEOpCodeMapper mapper = new SPEOpCodeMapper(state);
 
@@ -582,7 +615,10 @@ namespace SPEJIT
             method.ResetVirtualRegisters();
 
             //TODO: should be able to re-use registers used by the arguments, which frees appx 70 extra registers
-            List<int> usedRegs = new RegisterAllocator().AllocateRegisters(_LV0 + permRegs, new AccCIL.SimpleAllocator(), method);
+            List<int> usedRegs =
+                this.OptimizationLevel > AccCIL.OptimizationLevel.None ?
+                new RegisterAllocator().AllocateRegisters(_LV0 + permRegs, allocator, method) :
+                new List<int>();
 
             //new AccCILVisualizer.Visualizer(new AccCIL.IR.MethodEntry[] { method }).ShowDialog();
 
@@ -746,6 +782,5 @@ namespace SPEJIT
             
             return res;
         }
-
     }
 }

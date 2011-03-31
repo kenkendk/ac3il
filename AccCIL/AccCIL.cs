@@ -26,6 +26,17 @@ namespace AccCIL
             return asm;
         }
 
+        public static IOptimizer[] StockOptimizers
+        {
+            get
+            {
+                return new IOptimizer[] {
+                    new Optimizers.SimpleAllocator(),
+                    new Optimizers.IndexBoundsRemoval()
+                };
+            }
+        }
+
         public static string FindAssemblyName(MethodReference mr)
         {
             IMetadataScope scope = mr.DeclaringType.Scope;

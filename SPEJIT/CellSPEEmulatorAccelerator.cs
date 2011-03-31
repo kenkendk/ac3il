@@ -55,6 +55,9 @@ namespace SPEJIT
                 m_workingEvent.WaitOne();
                 spe.SPEStopped -= new SPEEmulator.StatusEventDelegate(spe_SPEStopped);
                 spe.Exit -= new SPEEmulator.ExitEventDelegate(spe_Exit);
+
+                Console.WriteLine("Executed {0} instructions while running function {1}", spe.SPU.InstructionsExecuted, m_loadedMethod.DeclaringType.FullName + "::" + m_loadedMethod.Name);
+
                 if (m_exitCode != SPEJITCompiler.STOP_SUCCESSFULL)
                     throw new Exception("Invalid exitcode: " + m_exitCode);
 
