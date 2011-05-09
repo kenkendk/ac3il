@@ -66,18 +66,7 @@ namespace JITTester
 
             try
             {
-                AccCIL.IAccellerator acc = new SPEJIT.CellSPEEmulatorAccelerator();
-                ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = true;
-
-                //acc.Accelerate(CILFac.Fac.WritelineTest, 42);
-
-                ((SPEJIT.CellSPEEmulatorAccelerator)acc).ShowGUI = false;
-
-                if (SPEJIT.CellSPEAccelerator.HasHardwareSPE)
-                    acc = new SPEJIT.CellSPEAccelerator();
-
-                //acc.OptimizationLevel = AccCIL.OptimizationLevel.Extreme;
-
+                AccCIL.IAccellerator acc = new JITCCompiler.NativeCAccellerator();
                 TestSuite(acc);
             }
             catch (Exception ex)

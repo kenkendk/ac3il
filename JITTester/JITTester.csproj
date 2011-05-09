@@ -19,7 +19,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>bin\x86\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -96,6 +96,10 @@
     <ProjectReference Include="..\CUDAJIT\CUDAJIT.csproj">
       <Project>{3B2A0F85-2B75-41E6-9EAF-BAFF9CA6DA68}</Project>
       <Name>CUDAJIT</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\JITCCompiler\JITCCompiler.csproj">
+      <Project>{387DC98E-F3C7-4A76-A74C-B7E31102E14E}</Project>
+      <Name>JITCCompiler</Name>
     </ProjectReference>
     <ProjectReference Include="..\SPEJIT\SPEJIT.csproj">
       <Project>{4EEE584A-B363-477D-AA89-602849551E1C}</Project>

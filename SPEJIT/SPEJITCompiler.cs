@@ -95,20 +95,12 @@ namespace SPEJIT
         /// <summary>
         /// The list of all mappped CIL to SPE translations
         /// </summary>
-        private static readonly Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> _opTranslations;
+        private static readonly Dictionary<Mono.Cecil.Cil.Code, System.Reflection.MethodInfo> _opTranslations = BuildTranslationTable();
 
         /// <summary>
         /// The list of active optimizers
         /// </summary>
         private List<IOptimizer> m_optimizers = new List<IOptimizer>();
-
-        /// <summary>
-        /// Static initializer for building instruction table based on reflection
-        /// </summary>
-        static SPEJITCompiler()
-        {
-            _opTranslations = BuildTranslationTable();
-        }
 
         /// <summary>
         /// Gets the list of active optimizers
@@ -196,7 +188,6 @@ namespace SPEJIT
         {
             //Prepare the call lookup table
             Dictionary<int, Mono.Cecil.MethodReference> callpoints = new Dictionary<int, Mono.Cecil.MethodReference>();
-
 
             //Typecast list
             List<CompiledMethod> methods = _methods.Select(x => (CompiledMethod)x).ToList();
